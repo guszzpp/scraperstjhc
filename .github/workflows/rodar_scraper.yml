@@ -1,0 +1,86 @@
+name: Rodar scraper diariamente
+
+on:
+  schedule:
+    - cron: '0 3 * * *'  # 00:00 Brasília (UTC+0 = 03:00)
+  workflow_dispatch:
+
+jobs:
+  run-scraper:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Clonar o repositório
+        uses: actions/checkout@v3
+
+      - name: Configurar Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Instalar dependências
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Definir data de hoje e ontem
+        id: data
+        run: |
+          echo "hoje=$(date +'%d/%m/%Y')" >> $GITHUB_OUTPUT
+          echo "ontem=$(date -d 'yesterday' +'%d/%m/%Y')" >> $GITHUB_OUTPUT
+
+      - name: Rodar o scraper
+        run: |
+          python main.py
+
+      - name: Verificar se há resultados
+        id: verifica_arquivo
+        run: |
+          if ls hc_tjgo_*.xlsx 2>/dev/null; then
+            echo "resultado=true" >> $GITHUB_OUTPUT
+          elif [ -f resultados_vazio.txt ]; then
+            echo "resultado=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Enviar e-mail com resultados (HCs encontrados)
+        if: steps.verifica_arquivo.outputs.resultado == 'true'
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          username: ${{ secrets.EMAIL_USUARIO }}
+          password: ${{ secrets.EMAIL_SENHA }}
+          subject: "Relatório de HCs impetrados no STJ em ${{ steps.data.outputs.ontem }}"
+          to: ${{ secrets.EMAIL_DESTINATARIO }}
+          from: ${{ secrets.EMAIL_USUARIO }}
+          body: |
+            Prezado(a),
+
+            Segue em anexo o relatório de Habeas Corpus (HCs) autuados no STJ, com origem no TJGO, na data de ${{ steps.data.outputs.ontem }}.
+
+            Esta automação tem como objetivo auxiliar no acompanhamento processual, mas **não substitui a conferência manual nos canais oficiais do STJ**.
+
+            Atenciosamente,
+            Sistema automatizado - GitHub Actions
+          attachments: hc_tjgo_*.xlsx
+
+      - name: Enviar e-mail de ausência de resultados
+        if: steps.verifica_arquivo.outputs.resultado == 'false'
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          username: ${{ secrets.EMAIL_USUARIO }}
+          password: ${{ secrets.EMAIL_SENHA }}
+          subject: "Nenhum HC impetrado no STJ em ${{ steps.data.outputs.ontem }}"
+          to: ${{ secrets.EMAIL_DESTINATARIO }}
+          from: ${{ secrets.EMAIL_USUARIO }}
+          body: |
+            Prezado(a),
+
+            Nenhum Habeas Corpus com origem no TJGO foi autuado no STJ na data de ${{ steps.data.outputs.ontem }}.
+
+            Esta mensagem foi gerada automaticamente pelo sistema. Para informações oficiais, consulte o site do STJ.
+
+            Atenciosamente,
+            Sistema automatizado - GitHub Actions
