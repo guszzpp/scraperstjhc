@@ -43,10 +43,10 @@ jobs:
             echo "resultado=false" >> $GITHUB_OUTPUT
           fi
 
-      - name: Montar corpo do e-mail
+      - name: Extrair informações do JSON e montar corpo do e-mail
         id: montar_corpo
         run: |
-          json=$(cat info_execucao.json 2>/dev/null || echo '{}')
+          json=$(cat info_execucao.json || echo '{}')
           erro=$(echo "$json" | jq -r '.erro_critico // empty')
 
           data_ini=$(echo "$json" | jq -r '.data_inicial // ""')
@@ -60,63 +60,63 @@ jobs:
           if [ -n "$erro" ]; then
             {
               echo "body<<EOF"
-              echo "Prezado(a),
-
-Ocorreu um erro crítico durante a execução do scraper de HCs no STJ para o intervalo de ${data_ini} até ${data_fim}.
-
-O erro foi:
-${erro}
-
-O script foi encerrado às ${horario}.
-
-Recomenda-se verificar manualmente no site do STJ:
-https://processo.stj.jus.br/processo/pesquisa/?aplicacao=processos.ea
-
-Atenciosamente,
-Sistema automatizado - GitHub Actions"
+              echo "Prezado(a),"
+              echo ""
+              echo "Ocorreu um erro crítico durante a execução do scraper de HCs no STJ para o intervalo de ${data_ini} até ${data_fim}."
+              echo ""
+              echo "O erro foi:"
+              echo "${erro}"
+              echo ""
+              echo "O script foi encerrado às ${horario}."
+              echo ""
+              echo "Recomenda-se verificar manualmente no site do STJ:"
+              echo "https://processo.stj.jus.br/processo/pesquisa/?aplicacao=processos.ea"
+              echo ""
+              echo "Atenciosamente,"
+              echo "Sistema automatizado - GitHub Actions"
               echo "EOF"
-            } >> "$GITHUB_ENV"
+            } >> $GITHUB_ENV
 
           elif [ "${{ steps.verifica_arquivo.outputs.resultado }}" == "true" ]; then
             {
               echo "body<<EOF"
-              echo "Prezado(a),
-
-Segue em anexo o relatório de Habeas Corpus (HCs) autuados no STJ, com origem no TJGO, na data de ${{ steps.data.outputs.ontem }}.
-Foram localizados ${qtd_total} processos, dos quais ${qtd_hcs} são HCs, com base nos seguintes parâmetros de busca:
-- Data inicial: ${data_ini}
-- Data final: ${data_fim}
-- Tribunal de origem: TJGO
-- Páginas com resultados: ${pags_total}
-- Páginas em que foi possível fazer a conferência: ${pags_ok}
-- O script foi finalizado em: ${horario}
-
-Esta automação tem como objetivo auxiliar no acompanhamento processual, mas **não substitui a conferência manual nos canais oficiais do STJ**.
-
-Atenciosamente,
-Sistema automatizado - GitHub Actions"
+              echo "Prezado(a),"
+              echo ""
+              echo "Segue em anexo o relatório de Habeas Corpus (HCs) autuados no STJ, com origem no TJGO, na data de ${{ steps.data.outputs.ontem }}."
+              echo "Foram localizados ${qtd_total} processos, dos quais ${qtd_hcs} são HCs, com base nos seguintes parâmetros de busca:"
+              echo "- Data inicial: ${data_ini}"
+              echo "- Data final: ${data_fim}"
+              echo "- Tribunal de origem: TJGO"
+              echo "- Páginas com resultados: ${pags_total}"
+              echo "- Páginas em que foi possível fazer a conferência: ${pags_ok}"
+              echo "- O script foi finalizado em: ${horario}"
+              echo ""
+              echo "Esta automação tem como objetivo auxiliar no acompanhamento processual, mas **não substitui a conferência manual nos canais oficiais do STJ**."
+              echo ""
+              echo "Atenciosamente,"
+              echo "Sistema automatizado - GitHub Actions"
               echo "EOF"
-            } >> "$GITHUB_ENV"
+            } >> $GITHUB_ENV
 
           else
             {
               echo "body<<EOF"
-              echo "Prezado(a),
-
-Nenhum Habeas Corpus com origem no TJGO foi autuado no STJ na data de ${{ steps.data.outputs.ontem }}, com base nos seguintes parâmetros de busca:
-- Data inicial: ${data_ini}
-- Data final: ${data_fim}
-- Tribunal de origem: TJGO
-- Páginas com resultados: ${pags_total}
-- Páginas em que foi possível fazer a conferência: ${pags_ok}
-- O script foi finalizado em: ${horario}
-
-Esta automação tem como objetivo auxiliar no acompanhamento processual, mas **não substitui a conferência manual nos canais oficiais do STJ**.
-
-Atenciosamente,
-Sistema automatizado - GitHub Actions"
+              echo "Prezado(a),"
+              echo ""
+              echo "Nenhum Habeas Corpus com origem no TJGO foi autuado no STJ na data de ${{ steps.data.outputs.ontem }}, com base nos seguintes parâmetros de busca:"
+              echo "- Data inicial: ${data_ini}"
+              echo "- Data final: ${data_fim}"
+              echo "- Tribunal de origem: TJGO"
+              echo "- Páginas com resultados: ${pags_total}"
+              echo "- Páginas em que foi possível fazer a conferência: ${pags_ok}"
+              echo "- O script foi finalizado em: ${horario}"
+              echo ""
+              echo "Esta automação tem como objetivo auxiliar no acompanhamento processual, mas **não substitui a conferência manual nos canais oficiais do STJ**."
+              echo ""
+              echo "Atenciosamente,"
+              echo "Sistema automatizado - GitHub Actions"
               echo "EOF"
-            } >> "$GITHUB_ENV"
+            } >> $GITHUB_ENV
           fi
 
       - name: Enviar e-mail
