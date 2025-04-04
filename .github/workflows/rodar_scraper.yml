@@ -2,7 +2,7 @@ name: Rodar scraper diariamente
 
 on:
   schedule:
-    - cron: '0 14 * * *'  # 12:00 Brasília (UTC+0 = 15:00)
+    - cron: '0 14 * * *'  # 11:00 Brasília (UTC-3)
   workflow_dispatch:
 
 jobs:
@@ -31,58 +31,79 @@ jobs:
 
       - name: Rodar o scraper
         run: |
-          python main.py
+          python main.py "${{ steps.data.outputs.ontem }}"
 
       - name: Verificar se há resultados
         id: verifica_arquivo
         run: |
           if ls hc_tjgo_*.xlsx 2>/dev/null; then
             echo "resultado=true" >> $GITHUB_OUTPUT
-          elif [ -f resultados_vazio.txt ]; then
+          else
             echo "resultado=false" >> $GITHUB_OUTPUT
           fi
 
-      - name: Extrair informações para o e-mail
+      - name: Extrair informações do JSON
         id: montar_corpo
         run: |
-          json=$(cat info_execucao.json)
-          qtd_resultados=$(echo "$json" | jq -r '.qtd_resultados')
-          qtd_hcs=$(echo "$json" | jq -r '.qtd_hcs')
-          data_inicial=$(echo "$json" | jq -r '.data_inicial')
-          data_final=$(echo "$json" | jq -r '.data_final')
-          paginas_total=$(echo "$json" | jq -r '.paginas_total')
-          paginas_processadas=$(echo "$json" | jq -r '.paginas_processadas')
-          horario=$(echo "$json" | jq -r '.horario_finalizacao')
+          json=$(cat info_execucao.json || echo '{}')
+          erro=$(echo "$json" | jq -r '.erro_critico // empty')
 
-          if [ "${{ steps.verifica_arquivo.outputs.resultado }}" == "true" ]; then
+          data_ini=$(echo "$json" | jq -r '.data_inicial // ""')
+          data_fim=$(echo "$json" | jq -r '.data_final // ""')
+          qtd_total=$(echo "$json" | jq -r '.qtd_resultados // 0')
+          qtd_hcs=$(echo "$json" | jq -r '.qtd_hcs // 0')
+          pags_total=$(echo "$json" | jq -r '.paginas_total // 0')
+          pags_ok=$(echo "$json" | jq -r '.paginas_processadas // 0')
+          horario=$(echo "$json" | jq -r '.horario_finalizacao // ""')
+
+          if [ -n "$erro" ]; then
+            echo "body<<EOF" >> $GITHUB_ENV
+            echo "Prezado(a),
+
+Ocorreu um erro crítico durante a execução do scraper de HCs no STJ para o intervalo de ${data_ini} até ${data_fim}.
+
+O erro foi:
+${erro}
+
+O script foi encerrado às ${horario}.
+
+Recomenda-se verificar manualmente no site do STJ:
+https://processo.stj.jus.br/processo/pesquisa/?aplicacao=processos.ea
+
+Atenciosamente,
+Sistema automatizado - GitHub Actions" >> $GITHUB_ENV
+            echo "EOF" >> $GITHUB_ENV
+
+          elif [ "${{ steps.verifica_arquivo.outputs.resultado }}" == "true" ]; then
             echo "body<<EOF" >> $GITHUB_ENV
             echo "Prezado(a),
 
 Segue em anexo o relatório de Habeas Corpus (HCs) autuados no STJ, com origem no TJGO, na data de ${{ steps.data.outputs.ontem }}.
-Foram localizados ${qtd_resultados} resultados com base nos seguintes parâmetros de busca:
-Data inicial: ${data_inicial}
-Data final: ${data_final}
-Tribunal de origem: TJGO
-Páginas com resultados: ${paginas_total}
-Páginas em que foi possível fazer a conferência: ${paginas_processadas}
-O script foi finalizado em: ${horario}
+Foram localizados ${qtd_total} resultados com base nos seguintes parâmetros de busca:
+- Data inicial: ${data_ini}
+- Data final: ${data_fim}
+- Tribunal de origem: TJGO
+- Páginas com resultados: ${pags_total}
+- Páginas em que foi possível fazer a conferência: ${pags_ok}
+- O script foi finalizado em: ${horario}
 
 Esta automação tem como objetivo auxiliar no acompanhamento processual, mas **não substitui a conferência manual nos canais oficiais do STJ**.
 
 Atenciosamente,
 Sistema automatizado - GitHub Actions" >> $GITHUB_ENV
             echo "EOF" >> $GITHUB_ENV
+
           else
             echo "body<<EOF" >> $GITHUB_ENV
             echo "Prezado(a),
 
-Nenhum Habeas Corpus com origem no TJGO foi autuado no STJ na data de ${{ steps.data.outputs.ontem }} com base nos seguintes parâmetros de busca:
-Data inicial: ${data_inicial}
-Data final: ${data_final}
-Tribunal de origem: TJGO
-Páginas com resultados: ${paginas_total}
-Páginas em que foi possível fazer a conferência: ${paginas_processadas}
-O script foi finalizado em: ${horario}
+Nenhum Habeas Corpus com origem no TJGO foi autuado no STJ na data de ${{ steps.data.outputs.ontem }}, com base nos seguintes parâmetros de busca:
+- Data inicial: ${data_ini}
+- Data final: ${data_fim}
+- Tribunal de origem: TJGO
+- Páginas com resultados: ${pags_total}
+- Páginas em que foi possível fazer a conferência: ${pags_ok}
+- O script foi finalizado em: ${horario}
 
 Esta automação tem como objetivo auxiliar no acompanhamento processual, mas **não substitui a conferência manual nos canais oficiais do STJ**.
 
@@ -91,7 +112,7 @@ Sistema automatizado - GitHub Actions" >> $GITHUB_ENV
             echo "EOF" >> $GITHUB_ENV
           fi
 
-      - name: Enviar e-mail com ou sem resultados
+      - name: Enviar e-mail
         uses: dawidd6/action-send-mail@v3
         with:
           server_address: smtp.gmail.com
