@@ -1,198 +1,75 @@
-from selenium import webdriver
-from selenium.webdriver.common.by import By
-from selenium.webdriver.chrome.service import Service
+import sys
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from webdriver_manager.chrome import ChromeDriverManager
-from selenium.webdriver.chrome.options import Options
-from datetime import date, timedelta
-import time
+from selenium.webdriver.common.by import By
+from selenium.common.exceptions import TimeoutException
+from navegador import iniciar_navegador
+from extrator import extrair_detalhes_processo
+from exportador import exportar_resultados
+from config import ONTEM, ORGAO_ORIGEM
+from formulario import preencher_formulario
+from paginador import navegar_paginas_e_extrair
 
-resultados = []  # lista para exportar ao final
-
-def iniciar_navegador():
-    options = Options()
-    options.add_argument("--headless=new")  # <- modo headless obrigatório no GitHub
-    options.add_argument("--no-sandbox")
-    options.add_argument("--disable-dev-shm-usage")
-    options.add_argument("--start-maximized")
-
-    driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
-    return driver
-
-
-def extrair_detalhes_processo(driver, wait, titulo="Processo", data_autuacao=""):
-    try:
-        # Número do processo
-        classe_span = wait.until(EC.presence_of_element_located((By.ID, "idSpanClasseDescricao")))
-        classe_texto = classe_span.text.strip()
-        numero_processo = classe_texto.replace("HC nº", "").strip() if classe_texto.startswith("HC nº") else classe_texto
-
-        # Relator(a)
-        spans = driver.find_elements(By.CLASS_NAME, "classSpanDetalhesLabel")
-        relator = "Não localizado"
-        situacao = "Não localizada"
-
-        for i, span in enumerate(spans):
-            if "RELATOR" in span.text.upper():
-                relator_span = spans[i].find_element(By.XPATH, "following-sibling::span[@class='classSpanDetalhesTexto']")
-                relator = relator_span.text.strip()
-                break
-
-        # Situação atual
-        situacao_spans = driver.find_elements(By.CLASS_NAME, "classSpanDetalhesTexto")
-        for span in situacao_spans:
-            texto = span.text.strip()
-            if any(palavra in texto for palavra in ["CONCLUSOS", "AGUARDANDO", "VISTA", "JULGAMENTO", "PROFERIDA"]):
-                situacao = texto
-                break
-
-        # Número CNJ
-        try:
-            numero_unico_link = WebDriverWait(driver, 5).until(
-                EC.presence_of_element_located((By.XPATH, "//a[contains(@href, 'tipoPesquisaNumeroUnico')]"))
-            )
-            numero_cnj = numero_unico_link.text.strip()
-        except:
-            numero_cnj = "Não localizado"
-
-        print(f"✔️ HC: {numero_processo}")
-        print(f"   Relator(a): {relator}")
-        print(f"   Situação:  {situacao}")
-        print(f"   Número CNJ: {numero_cnj}")
-        print("-" * 60)
-
-        resultados.append({
-            "numero_cnj": numero_cnj,
-            "numero_processo": numero_processo,
-            "relator": relator,
-            "situacao": situacao,
-            "data_autuacao": data_autuacao
-        })
-
-    except Exception as e:
-        print(f"⚠️ Erro ao extrair dados de {titulo}: {e}")
-
-
-def buscar_processos():
+def buscar_processos(data_inicial, data_final):
     driver = iniciar_navegador()
-    wait = WebDriverWait(driver, 15)
+    wait = WebDriverWait(driver, 20)
 
-    url = "https://processo.stj.jus.br/processo/pesquisa/?aplicacao=processos.ea"
-    driver.get(url)
-    time.sleep(2)
+    print("\n🔎 Iniciando execução...")
+    preencher_formulario(driver, wait, data_inicial, data_final)
 
-    ontem = (date.today() - timedelta(days=1)).strftime("%d/%m/%Y")
-
-    campo_data_inicial = wait.until(EC.visibility_of_element_located((By.ID, "idDataAutuacaoInicial")))
-    campo_data_inicial.clear()
-    campo_data_inicial.send_keys(ontem)
-
-    campo_data_final = wait.until(EC.visibility_of_element_located((By.ID, "idDataAutuacaoFinal")))
-    campo_data_final.clear()
-    campo_data_final.send_keys(ontem)
-
-    secao_julgador = wait.until(EC.element_to_be_clickable((By.ID, "idJulgadorOrigemTipoBlocoLabel")))
-    secao_julgador.click()
-    time.sleep(0.5)
-
-    campo_origem = wait.until(EC.presence_of_element_located((By.ID, "idOrgaosOrigemCampoParaPesquisar")))
-    campo_origem.clear()
-    campo_origem.send_keys("TJGO")
-
-    botao_pesquisar = wait.until(EC.element_to_be_clickable((By.ID, "idBotaoPesquisarFormularioExtendido")))
-    botao_pesquisar.click()
-
-    time.sleep(2)
-
+    # Coletar quantidade total de processos
     try:
-        wait.until(EC.presence_of_element_located((By.CLASS_NAME, "clsListaProcessoFormatoVerticalLinha")))
-        print(f"\n🔍 Resultados encontrados em {ontem} (somente HCs):\n")
-        encontrou = False
-
-        while True:
-            blocos = driver.find_elements(By.CLASS_NAME, "clsListaProcessoFormatoVerticalLinha")
-
-            for bloco in blocos:
-                links = bloco.find_elements(By.TAG_NAME, "a")
-                for link in links:
-                    texto = link.text.strip()
-
-                    if texto.startswith("HC ") and not texto.startswith("RHC "):
-                        href = link.get_attribute("href")
-                        encontrou = True
-
-                        driver.execute_script("window.open(arguments[0]);", href)
-                        driver.switch_to.window(driver.window_handles[1])
-                        extrair_detalhes_processo(driver, wait, texto, data_autuacao=ontem)
-                        driver.close()
-                        driver.switch_to.window(driver.window_handles[0])
-                        time.sleep(0.5)
-                        
-            try:
-                botao_proximo = driver.find_element(By.LINK_TEXT, "Próximo")
-                if "desabilitado" in botao_proximo.get_attribute("class").lower():
-                    break
-                else:
-                    botao_proximo.click()
-                    wait.until(EC.presence_of_element_located((By.CLASS_NAME, "clsListaProcessoFormatoVerticalLinha")))
-            except:
-                break
-
-        if not resultados:
-            print(f"\n⚠️ Nenhum HC encontrado com base nos critérios em {ontem}. Gerando aviso para envio de e-mail.")
-            with open("resultados_vazio.txt", "w") as f:
-                f.write(f"Nenhum Habeas Corpus com origem no TJGO foi autuado no STJ em {ontem}.")
-            return  # não gera o .xlsx nem segue com a exportação
-
+        total_texto = wait.until(EC.presence_of_element_located(
+            (By.CLASS_NAME, "clsMensagemLinha")
+        )).text
+        import re
+        total_processos_encontrados = int(re.search(r"(\d+)", total_texto).group(1))
     except:
-        print(f"\n🔎 Apenas 1 processo encontrado em {ontem}. Verificando se é HC...\n")
-        try:
-            classe_span = wait.until(EC.presence_of_element_located((By.ID, "idSpanClasseDescricao")))
-            texto = classe_span.text.strip()
+        total_processos_encontrados = "Não identificado"
 
-            if texto.startswith("HC ") or texto.startswith("HC nº"):
-                extrair_detalhes_processo(driver, wait, texto, data_autuacao=ontem)
-            else:
-                print(f"⚠️ Processo único encontrado, mas não é HC: \"{texto}\"")
+    # Coletar quantidade de páginas (ex: "de 35 páginas")
+    try:
+        span = wait.until(EC.presence_of_element_located(
+            (By.CLASS_NAME, "classSpanPaginacaoPaginaTextoInterno")
+        ))
+        match = re.search(r"de (\d+) página", span.text)
+        numero_paginas = match.group(1) if match else "Não identificado"
+    except:
+        numero_paginas = "Não identificado"
 
-        except:
-            print("⚠️ Não foi possível localizar a classe do processo na página.")
-
+    # Navegação e extração
+    resultados, relatorio_paginas = navegar_paginas_e_extrair(driver, wait, extrair_detalhes_processo)
     driver.quit()
 
-    # Exporta XLSX
     if resultados:
-        from openpyxl import Workbook
-        from openpyxl.utils import get_column_letter
+        exportar_resultados(resultados, data_inicial, data_final)
 
-        wb = Workbook()
-        ws = wb.active
-        ws.title = "HC TJGO"
+    # Criar relatorio.txt
+    with open("relatorio.txt", "w", encoding="utf-8") as f:
+        f.write(f"📅 Data da execução: {ONTEM}\n")
+        f.write("📥 Parâmetros utilizados:\n")
+        f.write(f"   - Data inicial: {data_inicial}\n")
+        f.write(f"   - Data final:   {data_final}\n")
+        f.write(f"   - Órgão de origem: {ORGAO_ORIGEM}\n")
+        f.write(f"\n🔢 Quantidade total de resultados na busca: {total_processos_encontrados}\n")
+        f.write(f"📃 Total de páginas retornadas: {numero_paginas}\n")
+        f.write(f"🧾 Quantidade total de HCs extraídos com sucesso: {len(resultados)}\n\n")
+        f.write("📖 Status por página:\n")
+        for linha in relatorio_paginas:
+            f.write(f"{linha}\n")
 
-        # Cabeçalhos
-        headers = ["Número CNJ", "Número do Processo", "Relator(a)", "Situação", "Data de Autuação"]
-        ws.append(headers)
+    if not resultados:
+        with open("resultados_vazio.txt", "w", encoding="utf-8") as vazio:
+            vazio.write("Nenhum resultado coletado.\n")
 
-        for item in resultados:
-            ws.append([
-                item["numero_cnj"],
-                item["numero_processo"],
-                item["relator"],
-                item["situacao"],
-                item["data_autuacao"]
-            ])
-
-        # Ajusta largura das colunas
-        for i, coluna in enumerate(ws.columns, 1):
-            max_length = max(len(str(c.value)) if c.value else 0 for c in coluna)
-            ws.column_dimensions[get_column_letter(i)].width = max(20, max_length + 2)
-
-        # Nome do arquivo com a data
-        nome_arquivo = f"hc_tjgo_{resultados[0]['data_autuacao'].replace('/', '-')}.xlsx"
-        wb.save(nome_arquivo)
-
-        print(f"\n📁 Resultado salvo em '{nome_arquivo}' com {len(resultados)} registros.")
-
+# Execução principal
 if __name__ == "__main__":
-    buscar_processos()
+    if len(sys.argv) == 3:
+        data_ini, data_fim = sys.argv[1], sys.argv[2]
+    elif len(sys.argv) == 2:
+        data_ini = data_fim = sys.argv[1]
+    else:
+        data_ini = data_fim = ONTEM
+
+    buscar_processos(data_ini, data_fim)
+    print("\n✅ Script finalizado.")
