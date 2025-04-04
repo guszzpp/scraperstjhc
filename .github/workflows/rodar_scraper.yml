@@ -2,7 +2,7 @@ name: Rodar scraper diariamente
 
 on:
   schedule:
-    - cron: '0 15 * * *'  # 00:00 Brasília (UTC+0 = 03:00)
+    - cron: '0 15 * * *'  # 12:00 Brasília (UTC+0 = 15:00)
   workflow_dispatch:
 
 jobs:
@@ -33,29 +33,65 @@ jobs:
         run: |
           python main.py
 
-      - name: Carregar variáveis de execução
-        id: info_execucao
-        run: |
-          export VARIAVEIS=$(cat info_execucao.json)
-          echo "data_inicial=$(jq -r '.data_inicial' info_execucao.json)" >> $GITHUB_OUTPUT
-          echo "data_final=$(jq -r '.data_final' info_execucao.json)" >> $GITHUB_OUTPUT
-          echo "qtd_resultados=$(jq -r '.qtd_resultados' info_execucao.json)" >> $GITHUB_OUTPUT
-          echo "qtd_hcs=$(jq -r '.qtd_hcs' info_execucao.json)" >> $GITHUB_OUTPUT
-          echo "paginas_total=$(jq -r '.paginas_total' info_execucao.json)" >> $GITHUB_OUTPUT
-          echo "paginas_processadas=$(jq -r '.paginas_processadas' info_execucao.json)" >> $GITHUB_OUTPUT
-          echo "horario_finalizacao=$(jq -r '.horario_finalizacao' info_execucao.json)" >> $GITHUB_OUTPUT
-
       - name: Verificar se há resultados
         id: verifica_arquivo
         run: |
           if ls hc_tjgo_*.xlsx 2>/dev/null; then
             echo "resultado=true" >> $GITHUB_OUTPUT
-          else
+          elif [ -f resultados_vazio.txt ]; then
             echo "resultado=false" >> $GITHUB_OUTPUT
           fi
 
-      - name: Enviar e-mail com resultados (HCs encontrados)
-        if: steps.verifica_arquivo.outputs.resultado == 'true'
+      - name: Extrair informações para o e-mail
+        id: montar_corpo
+        run: |
+          json=$(cat info_execucao.json)
+          qtd_resultados=$(echo "$json" | jq -r '.qtd_resultados')
+          qtd_hcs=$(echo "$json" | jq -r '.qtd_hcs')
+          data_inicial=$(echo "$json" | jq -r '.data_inicial')
+          data_final=$(echo "$json" | jq -r '.data_final')
+          paginas_total=$(echo "$json" | jq -r '.paginas_total')
+          paginas_processadas=$(echo "$json" | jq -r '.paginas_processadas')
+          horario=$(echo "$json" | jq -r '.horario_finalizacao')
+
+          if [ "${{ steps.verifica_arquivo.outputs.resultado }}" == "true" ]; then
+            echo "body<<EOF" >> $GITHUB_ENV
+            echo "Prezado(a),
+
+Segue em anexo o relatório de Habeas Corpus (HCs) autuados no STJ, com origem no TJGO, na data de ${{ steps.data.outputs.ontem }}.
+Foram localizados ${qtd_resultados} resultados com base nos seguintes parâmetros de busca:
+Data inicial: ${data_inicial}
+Data final: ${data_final}
+Tribunal de origem: TJGO
+Páginas com resultados: ${paginas_total}
+Páginas em que foi possível fazer a conferência: ${paginas_processadas}
+O script foi finalizado em: ${horario}
+
+Esta automação tem como objetivo auxiliar no acompanhamento processual, mas **não substitui a conferência manual nos canais oficiais do STJ**.
+
+Atenciosamente,
+Sistema automatizado - GitHub Actions" >> $GITHUB_ENV
+            echo "EOF" >> $GITHUB_ENV
+          else
+            echo "body<<EOF" >> $GITHUB_ENV
+            echo "Prezado(a),
+
+Nenhum Habeas Corpus com origem no TJGO foi autuado no STJ na data de ${{ steps.data.outputs.ontem }} com base nos seguintes parâmetros de busca:
+Data inicial: ${data_inicial}
+Data final: ${data_final}
+Tribunal de origem: TJGO
+Páginas com resultados: ${paginas_total}
+Páginas em que foi possível fazer a conferência: ${paginas_processadas}
+O script foi finalizado em: ${horario}
+
+Esta automação tem como objetivo auxiliar no acompanhamento processual, mas **não substitui a conferência manual nos canais oficiais do STJ**.
+
+Atenciosamente,
+Sistema automatizado - GitHub Actions" >> $GITHUB_ENV
+            echo "EOF" >> $GITHUB_ENV
+          fi
+
+      - name: Enviar e-mail com ou sem resultados
         uses: dawidd6/action-send-mail@v3
         with:
           server_address: smtp.gmail.com
@@ -65,47 +101,5 @@ jobs:
           subject: "Relatório de HCs impetrados no STJ em ${{ steps.data.outputs.ontem }}"
           to: ${{ secrets.EMAIL_DESTINATARIO }}
           from: ${{ secrets.EMAIL_USUARIO }}
-          body: |
-            Prezado(a),
-
-            Segue em anexo o relatório de Habeas Corpus (HCs) autuados no STJ, com origem no TJGO, na data de ${{ steps.data.outputs.ontem }}.
-            Foram localizados ${{ steps.info_execucao.outputs.qtd_resultados }} resultados com base nos seguintes parâmetros de busca:
-            Data inicial: ${{ steps.info_execucao.outputs.data_inicial }}
-            Data final:  ${{ steps.info_execucao.outputs.data_final }}
-            Tribunal de origem: TJGO
-            Páginas com resultados: ${{ steps.info_execucao.outputs.paginas_total }}
-            Páginas em que foi possível fazer a conferência: ${{ steps.info_execucao.outputs.paginas_processadas }}
-            O script foi finalizado em: ${{ steps.info_execucao.outputs.horario_finalizacao }}
-
-            Esta automação tem como objetivo auxiliar no acompanhamento processual, mas **não substitui a conferência manual nos canais oficiais do STJ**.
-
-            Atenciosamente,
-            Sistema automatizado - GitHub Actions
+          body: ${{ env.body }}
           attachments: hc_tjgo_*.xlsx
-
-      - name: Enviar e-mail de ausência de resultados
-        if: steps.verifica_arquivo.outputs.resultado == 'false'
-        uses: dawidd6/action-send-mail@v3
-        with:
-          server_address: smtp.gmail.com
-          server_port: 465
-          username: ${{ secrets.EMAIL_USUARIO }}
-          password: ${{ secrets.EMAIL_SENHA }}
-          subject: "Nenhum HC impetrado no STJ em ${{ steps.data.outputs.ontem }}"
-          to: ${{ secrets.EMAIL_DESTINATARIO }}
-          from: ${{ secrets.EMAIL_USUARIO }}
-          body: |
-            Prezado(a),
-
-            Nenhum Habeas Corpus com origem no TJGO foi autuado no STJ na data de ${{ steps.data.outputs.ontem }} com base nos seguintes parâmetros de busca:
-            Data inicial: ${{ steps.info_execucao.outputs.data_inicial }}
-            Data final:  ${{ steps.info_execucao.outputs.data_final }}
-            Tribunal de origem: TJGO
-            Páginas com resultados: ${{ steps.info_execucao.outputs.paginas_total }}
-            Páginas em que foi possível fazer a conferência: ${{ steps.info_execucao.outputs.paginas_processadas }}
-            O script foi finalizado em: ${{ steps.info_execucao.outputs.horario_finalizacao }}
-
-            Esta automação tem como objetivo auxiliar no acompanhamento processual, mas **não substitui a conferência manual nos canais oficiais do STJ**.
-
-            Atenciosamente,
-            Sistema automatizado - GitHub Actions
