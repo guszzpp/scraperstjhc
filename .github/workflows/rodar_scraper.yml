@@ -2,7 +2,7 @@ name: Rodar scraper diariamente
 
 on:
   schedule:
-    - cron: '0 15 * * *'  # 12:00 Brasília (UTC+0 = 15:00)
+    - cron: '0 14 * * *'  # 12:00 Brasília (UTC+0 = 15:00)
   workflow_dispatch:
 
 jobs:
