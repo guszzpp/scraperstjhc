@@ -2,66 +2,104 @@
 import sys
 import re
 import time
-import json
 import logging
 from datetime import datetime
 from selenium.common.exceptions import TimeoutException, WebDriverException
+from selenium.webdriver.support.ui import WebDriverWait
 
 from navegador import iniciar_navegador
 from extrator import extrair_detalhes_processo
 from exportador import exportar_resultados
-from paginador import navegar_paginas_e_extrair, obter_total_paginas
-from formulario import preencher_formulario_busca
-from config import ONTEM, URL_PESQUISA
+from paginador import navegar_paginas_e_extrair
+from formulario import preencher_formulario
+from email_detalhado import gerar_corpo_email
+from config import ONTEM, ORGAO_ORIGEM
 
-# Configuração do logging
-logging.basicConfig(filename="scraper.log", level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+logging.basicConfig(level=logging.INFO, format="%(message)s")
 
 def buscar_processos(data_inicial, data_final):
     resultados = []
     total_resultados = 0
     total_paginas = 0
-    ultima_pagina_processada = 0
-    driver = None
+    paginas_processadas = 0
+    relatorio_paginas = []
+    erro_critico = None
 
     try:
         driver = iniciar_navegador()
-        logging.info(f"Iniciando busca: {data_inicial} a {data_final}")
+        wait = WebDriverWait(driver, 15)
 
-        total_resultados = preencher_formulario_busca(driver, data_inicial, data_final)
-        total_paginas = obter_total_paginas(driver)
+        print(f"🟡 Iniciando busca de HCs no STJ — {data_inicial} até {data_final}")
 
-        resultados, ultima_pagina_processada = navegar_paginas_e_extrair(driver, extrair_detalhes_processo)
+        preencher_formulario(driver, wait, data_inicial, data_final)
+
+        # 🔎 Captura do total de resultados
+        try:
+            mensagem = wait.until(lambda d: d.find_element("class name", "clsMensagemLinha"))
+            texto = mensagem.text.strip()
+            match = re.search(r'(\d+)', texto)
+            if match:
+                total_resultados = int(match.group(1))
+        except:
+            print("⚠️ Não foi possível capturar o total de registros retornados.")
+
+        print("🔍 Formulário preenchido. Iniciando navegação nas páginas de resultados...")
+
+        resultados, relatorio_paginas = navegar_paginas_e_extrair(driver, wait, extrair_detalhes_processo, data_inicial)
+        paginas_processadas = len(relatorio_paginas)
+        total_paginas = paginas_processadas  # são equivalentes no modelo atual
 
     except (TimeoutException, WebDriverException) as e:
-        logging.error(f"Erro crítico: {e}")
+        erro_critico = str(e)
+        print(f"❌ Erro crítico: {erro_critico}")
+
+    except Exception as e:
+        erro_critico = str(e)
+        print(f"❌ Erro inesperado: {erro_critico}")
+
     finally:
-        if driver:
+        if 'driver' in locals():
             driver.quit()
-            logging.info("Navegador fechado.")
+            print("🔻 Navegador fechado.")
 
-    qtd_hcs = len(resultados)
-
-    if qtd_hcs > 0:
-        exportar_resultados(resultados, data_inicial, data_final)
+    if resultados:
+        nome_arquivo = exportar_resultados(resultados, data_inicial, data_final)
     else:
-        with open("resultados_vazio.txt", "w", encoding="utf-8") as f:
-            f.write("Nenhum HC encontrado.")
+        nome_arquivo = None
+        print("\n⚠️ Nenhum dado a exportar. Nenhum arquivo será gerado.")
 
-    # Gera arquivo info_execucao.json
-    info = {
-        "data_inicial": data_inicial,
-        "data_final": data_final,
-        "qtd_resultados": total_resultados,
-        "qtd_hcs": qtd_hcs,
-        "paginas_total": total_paginas,
-        "paginas_processadas": ultima_pagina_processada,
-        "horario_finalizacao": datetime.now().strftime("%d/%m/%Y %H:%M:%S")
-    }
-    with open("info_execucao.json", "w", encoding="utf-8") as f:
-        json.dump(info, f, ensure_ascii=False, indent=2)
+    if not resultados:
+        print("\n⚠️ Nenhum Habeas Corpus encontrado.")
+    else:
+        print(f"\n📊 Total de HCs extraídos: {len(resultados)}")
 
-    print("✅ Execução finalizada.")
+    if relatorio_paginas:
+        print("\n📄 Relatório de páginas processadas:")
+        for linha in relatorio_paginas:
+            print(f"- {linha}")
+    else:
+        print("\n⚠️ Nenhuma página foi processada.")
+
+    horario_finalizacao = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+    print(f"\n✅ Execução finalizada às {horario_finalizacao}")
+
+    # Gera corpo do e-mail
+    corpo_email = gerar_corpo_email(
+        data_inicial=data_inicial,
+        data_final=data_final,
+        total_resultados=total_resultados,
+        total_paginas=total_paginas,
+        paginas_processadas=paginas_processadas,
+        qtd_hcs=len(resultados),
+        horario_finalizacao=horario_finalizacao,
+        erro_critico=erro_critico
+    )
+
+    print("\n📝 Corpo do e-mail:\n")
+    print(corpo_email)
+
+    return corpo_email, nome_arquivo
+
 
 # Execução principal
 if __name__ == "__main__":

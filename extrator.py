@@ -1,9 +1,10 @@
 # extrator.py
+
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
-def extrair_detalhes_processo(driver, wait, titulo="Processo"):
+def extrair_detalhes_processo(driver, wait, titulo="Processo", data_autuacao=""):
     try:
         # Classe e número do processo
         classe_span = wait.until(EC.presence_of_element_located((By.ID, "idSpanClasseDescricao")))
@@ -14,7 +15,6 @@ def extrair_detalhes_processo(driver, wait, titulo="Processo"):
         spans = driver.find_elements(By.CLASS_NAME, "classSpanDetalhesLabel")
         relator = "Aguardando distribuição"
         situacao = "Aguardando andamento inicial"
-        data_autuacao = "Não localizada"
 
         for i, span in enumerate(spans):
             texto_label = span.text.upper().strip()
@@ -24,12 +24,6 @@ def extrair_detalhes_processo(driver, wait, titulo="Processo"):
                     relator = relator_span.text.strip()
                 except:
                     relator = "Erro ao localizar"
-            elif "AUTUAÇÃO" in texto_label:
-                try:
-                    autuacao_span = spans[i].find_element(By.XPATH, "following-sibling::span[@class='classSpanDetalhesTexto']")
-                    data_autuacao = autuacao_span.text.strip()
-                except:
-                    data_autuacao = "Erro ao localizar"
 
         # Situação atual
         situacao_spans = driver.find_elements(By.CLASS_NAME, "classSpanDetalhesTexto")
@@ -47,6 +41,12 @@ def extrair_detalhes_processo(driver, wait, titulo="Processo"):
             numero_cnj = numero_unico_link.text.strip()
         except:
             numero_cnj = "Não localizado"
+
+        print(f"✔️ HC: {numero_processo}")
+        print(f"   Relator(a): {relator}")
+        print(f"   Situação:  {situacao}")
+        print(f"   Número CNJ: {numero_cnj}")
+        print("-" * 60)
 
         return {
             "numero_cnj": numero_cnj,

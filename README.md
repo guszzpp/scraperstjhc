@@ -1,90 +1,112 @@
-# Scraper STJ - Habeas Corpus (HC) com origem no TJGO
+# Scraper de HCs no STJ (origem TJGO)
 
-Este projeto automatiza a coleta diária de dados sobre Habeas Corpus (HC) autuados no site do Superior Tribunal de Justiça (STJ), com origem no Tribunal de Justiça de Goiás (TJGO). Os dados coletados incluem:
+Este projeto realiza buscas automáticas no site do Superior Tribunal de Justiça (STJ), filtrando apenas **Habeas Corpus** com **origem no Tribunal de Justiça de Goiás - TJGO**, e exporta os dados relevantes para planilha Excel (.xlsx).
 
-    Número do processo (formato STJ)
+---
 
-    Número único CNJ
+## ⚙️ Requisitos
 
-    Relator(a)
+- Python 3.10+
+- Google Chrome instalado
+- ChromeDriver compatível (gerenciado automaticamente com `webdriver_manager`)
+- Conta de e-mail configurada no GitHub Secrets, se desejar envio automático
 
-    Situação atual
+---
 
-    Data da autuação
+## 🔧 Instalação
 
-# 📁 Estrutura modular
+1. Clone o repositório:
+   ```bash
+   git clone https://github.com/seu-usuario/seu-repositorio.git
+   cd seu-repositorio
+   ```
 
-scraperstjhc/
-├── main.py                 # Script principal (orquestra tudo)
-├── config.py              # Configurações de data e parâmetros
-├── navegador.py           # Inicialização do navegador
-├── extrator.py            # Extração de dados da página de cada processo
-├── exportador.py          # Exportação dos dados para planilha .xlsx
-├── requirements.txt       # Dependências do projeto
-└── .github/workflows/     # (opcional) Automação via GitHub Actions
+2. Instale as dependências:
+   ```bash
+   pip install -r requirements.txt
+   ```
 
-# ⚙️ Requisitos
+---
 
-    Python 3.8 ou superior
+## ▶️ Execução manual
 
-    Google Chrome instalado
+Você pode executar o script com:
 
-    Ambiente virtual ativo (recomendado)
+- Sem argumentos (usa ontem):
+  ```bash
+  python main.py
+  ```
 
-# 🚀 Instalação
+- Uma data específica (usa como início e fim):
+  ```bash
+  python main.py 28/03/2025
+  ```
 
-Abra um terminal e execute:
+- Um intervalo de datas:
+  ```bash
+  python main.py 01/03/2025 31/03/2025
+  ```
 
-1. Clone o repositório
-git clone https://github.com/seu-usuario/scraperstjhc.git
-cd scraperstjhc
+---
 
-2. Crie o ambiente virtual
-python -m venv venv
+## 📬 Exportação
 
-3. Ative o ambiente virtual
-- No Windows:
-venv\Scripts\activate
-- No Linux/Mac:
-source venv/bin/activate
+Se houver resultados, será gerado automaticamente um arquivo `.xlsx` com os dados extraídos. O nome do arquivo será:
 
-4. Instale as dependências
-pip install -r requirements.txt
+- Para data única:
+  ```
+  hc_tjgo_dd-mm-aaaa.xlsx
+  ```
 
-# ▶️ Execução manual
+- Para intervalo de datas:
+  ```
+  hc_tjgo_dd-mm-aaaa_a_dd-mm-aaaa.xlsx
+  ```
 
-Por padrão, o script busca os HCs autuados ontem:
+---
 
-python main.py
+## 🔁 Agendamento automático (GitHub Actions)
 
-Você também pode passar uma data específica no formato dd/mm/aaaa:
+O script é executado automaticamente todos os dias às **12:00 (horário de Brasília)**.
 
-python main.py 28/03/2025
+---
 
-# 📬 Exportação
+## 📧 Envio de e-mail
 
-Se houver resultados, será gerado automaticamente um arquivo .xlsx com nome no formato:
+O corpo da mensagem enviada pelo GitHub Actions incluirá:
 
-hc_tjgo_30-03-2025.xlsx
+- Datas de busca
+- Total de processos retornados
+- Quantos são Habeas Corpus (HCs)
+- Quantidade de páginas analisadas
+- Horário de finalização
+- Alerta sobre a necessidade de conferência manual
 
-# 🔁 Agendamento automático (GitHub Actions)
+---
 
-Este projeto pode ser automatizado via GitHub Actions. O workflow:
+## 📁 Estrutura
 
-    Executa todos os dias às 00:00 (horário de Brasília)
+- `main.py`: fluxo principal
+- `formulario.py`: preenchimento do formulário
+- `paginador.py`: controle de páginas
+- `extrator.py`: extração dos dados do processo
+- `exportador.py`: exportação para Excel
+- `email_detalhado.py`: corpo do e-mail gerado
+- `config.py`: configurações básicas
+- `.github/workflows/main.yml`: agendamento automático
 
-    Busca os HCs com base na data do dia anterior
+---
 
-    Exporta os dados
+## 🔒 Segurança
 
-    Envia o arquivo por e-mail (se os GitHub Secrets estiverem configurados)
+As credenciais para envio de e-mail são lidas dos `Secrets` configurados no repositório do GitHub:
 
-    ⚠️ Certifique-se de configurar corretamente os segredos no repositório para o envio de e-mails automáticos funcionar.
+- `EMAIL_USUARIO`
+- `EMAIL_SENHA`
+- `EMAIL_DESTINATARIO`
 
-# 🔒 Segurança
+---
 
-Este projeto não armazena senhas nem dados sensíveis no código-fonte. As credenciais para envio de e-mail são armazenadas com segurança no GitHub como secrets.
+## 📄 Licença
 
-# 📄 Licença
-
-Este projeto está licenciado sob os termos da Licença MIT.
+MIT License.

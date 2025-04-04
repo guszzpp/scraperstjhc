@@ -3,7 +3,7 @@
 import logging
 from selenium.common.exceptions import TimeoutException, WebDriverException
 from navegador import iniciar_navegador
-from config import ORGAO_ORIGEM
+from config import
 from formulario import preencher_formulario
 from paginador import navegar_paginas_e_extrair
 from exportador import exportar_resultados
@@ -25,7 +25,7 @@ def executar_busca(data_inicial, data_final):
         wait = WebDriverWait(driver, wait_timeout)
 
         logging.info(f"Iniciando busca para intervalo: {data_inicial} a {data_final}")
-        preencher_formulario(driver, wait, data_inicial, data_final, ORGAO_ORIGEM)
+        preencher_formulario(driver, wait, data_inicial, data_final)
 
         logging.info("Iniciando extração de dados paginados...")
         resultados = navegar_paginas_e_extrair(driver, wait, extrair_detalhes_processo)
