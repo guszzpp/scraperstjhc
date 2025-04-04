@@ -12,8 +12,8 @@ def extrair_detalhes_processo(driver, wait, titulo="Processo"):
 
         # Relator(a)
         spans = driver.find_elements(By.CLASS_NAME, "classSpanDetalhesLabel")
-        relator = "Não localizado"
-        situacao = "Não localizada"
+        relator = "Aguardando distribuição"
+        situacao = "Aguardando andamento inicial"
         data_autuacao = "Não localizada"
 
         for i, span in enumerate(spans):
