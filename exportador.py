@@ -13,11 +13,11 @@ def exportar_resultados(resultados, data_inicial, data_final):
 
     for item in resultados:
         ws.append([
-            item["numero_cnj"],
-            item["numero_processo"],
-            item["relator"],
-            item["situacao"],
-            item["data_autuacao"]
+            item.get("numero_cnj", ""),
+            item.get("numero_processo", ""),
+            item.get("relator", ""),
+            item.get("situacao", ""),
+            item.get("data_autuacao", "")
         ])
 
     # Ajustar largura das colunas
@@ -25,8 +25,8 @@ def exportar_resultados(resultados, data_inicial, data_final):
         max_length = max(len(str(c.value)) if c.value else 0 for c in coluna)
         ws.column_dimensions[get_column_letter(i)].width = max(20, max_length + 2)
 
-    # Formatar nome do arquivo com as datas
     def formatar(data): return data.replace("/", "-")
+
     if data_inicial == data_final:
         nome_arquivo = f"hc_tjgo_{formatar(data_inicial)}.xlsx"
     else:
@@ -34,3 +34,4 @@ def exportar_resultados(resultados, data_inicial, data_final):
 
     wb.save(nome_arquivo)
     print(f"\n📁 Resultado salvo em '{nome_arquivo}' com {len(resultados)} registros.")
+    return nome_arquivo
