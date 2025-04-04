@@ -1,66 +1,67 @@
+# main.py
 import sys
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.common.by import By
-from selenium.common.exceptions import TimeoutException
+import re
+import time
+import json
+import logging
+from datetime import datetime
+from selenium.common.exceptions import TimeoutException, WebDriverException
+
 from navegador import iniciar_navegador
 from extrator import extrair_detalhes_processo
 from exportador import exportar_resultados
-from config import ONTEM, ORGAO_ORIGEM
-from formulario import preencher_formulario
-from paginador import navegar_paginas_e_extrair
+from paginador import navegar_paginas_e_extrair, obter_total_paginas
+from formulario import preencher_formulario_busca
+from config import ONTEM, URL_PESQUISA
+
+# Configuração do logging
+logging.basicConfig(filename="scraper.log", level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
 def buscar_processos(data_inicial, data_final):
-    driver = iniciar_navegador()
-    wait = WebDriverWait(driver, 20)
+    resultados = []
+    total_resultados = 0
+    total_paginas = 0
+    ultima_pagina_processada = 0
+    driver = None
 
-    print("\n🔎 Iniciando execução...")
-    preencher_formulario(driver, wait, data_inicial, data_final)
-
-    # Coletar quantidade total de processos
     try:
-        total_texto = wait.until(EC.presence_of_element_located(
-            (By.CLASS_NAME, "clsMensagemLinha")
-        )).text
-        import re
-        total_processos_encontrados = int(re.search(r"(\d+)", total_texto).group(1))
-    except:
-        total_processos_encontrados = "Não identificado"
+        driver = iniciar_navegador()
+        logging.info(f"Iniciando busca: {data_inicial} a {data_final}")
 
-    # Coletar quantidade de páginas (ex: "de 35 páginas")
-    try:
-        span = wait.until(EC.presence_of_element_located(
-            (By.CLASS_NAME, "classSpanPaginacaoPaginaTextoInterno")
-        ))
-        match = re.search(r"de (\d+) página", span.text)
-        numero_paginas = match.group(1) if match else "Não identificado"
-    except:
-        numero_paginas = "Não identificado"
+        total_resultados = preencher_formulario_busca(driver, data_inicial, data_final)
+        total_paginas = obter_total_paginas(driver)
 
-    # Navegação e extração
-    resultados, relatorio_paginas = navegar_paginas_e_extrair(driver, wait, extrair_detalhes_processo)
-    driver.quit()
+        resultados, ultima_pagina_processada = navegar_paginas_e_extrair(driver, extrair_detalhes_processo)
 
-    if resultados:
+    except (TimeoutException, WebDriverException) as e:
+        logging.error(f"Erro crítico: {e}")
+    finally:
+        if driver:
+            driver.quit()
+            logging.info("Navegador fechado.")
+
+    qtd_hcs = len(resultados)
+
+    if qtd_hcs > 0:
         exportar_resultados(resultados, data_inicial, data_final)
+    else:
+        with open("resultados_vazio.txt", "w", encoding="utf-8") as f:
+            f.write("Nenhum HC encontrado.")
 
-    # Criar relatorio.txt
-    with open("relatorio.txt", "w", encoding="utf-8") as f:
-        f.write(f"📅 Data da execução: {ONTEM}\n")
-        f.write("📥 Parâmetros utilizados:\n")
-        f.write(f"   - Data inicial: {data_inicial}\n")
-        f.write(f"   - Data final:   {data_final}\n")
-        f.write(f"   - Órgão de origem: {ORGAO_ORIGEM}\n")
-        f.write(f"\n🔢 Quantidade total de resultados na busca: {total_processos_encontrados}\n")
-        f.write(f"📃 Total de páginas retornadas: {numero_paginas}\n")
-        f.write(f"🧾 Quantidade total de HCs extraídos com sucesso: {len(resultados)}\n\n")
-        f.write("📖 Status por página:\n")
-        for linha in relatorio_paginas:
-            f.write(f"{linha}\n")
+    # Gera arquivo info_execucao.json
+    info = {
+        "data_inicial": data_inicial,
+        "data_final": data_final,
+        "qtd_resultados": total_resultados,
+        "qtd_hcs": qtd_hcs,
+        "paginas_total": total_paginas,
+        "paginas_processadas": ultima_pagina_processada,
+        "horario_finalizacao": datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+    }
+    with open("info_execucao.json", "w", encoding="utf-8") as f:
+        json.dump(info, f, ensure_ascii=False, indent=2)
 
-    if not resultados:
-        with open("resultados_vazio.txt", "w", encoding="utf-8") as vazio:
-            vazio.write("Nenhum resultado coletado.\n")
+    print("✅ Execução finalizada.")
 
 # Execução principal
 if __name__ == "__main__":
@@ -71,5 +72,9 @@ if __name__ == "__main__":
     else:
         data_ini = data_fim = ONTEM
 
+    date_pattern = re.compile(r"^\d{2}/\d{2}/\d{4}$")
+    if not date_pattern.match(data_ini) or not date_pattern.match(data_fim):
+        print("❌ Formato inválido. Use DD/MM/AAAA.")
+        sys.exit(1)
+
     buscar_processos(data_ini, data_fim)
-    print("\n✅ Script finalizado.")
