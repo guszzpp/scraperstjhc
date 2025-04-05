@@ -95,26 +95,47 @@ jobs:
 
       # Este passo RODA SE O PASSO 'scraper' FOI BEM SUCEDIDO (mesmo que o script tenha encontrado erros internos e gerado JSON de erro)
       - name: 📄 Extrair informações do JSON e Montar Corpo do E-mail (Sucesso/Erro Interno)
-        if: success() || steps.scraper.outcome == 'success' # Roda se o script terminou (status 0)
+        # Roda se o passo 'scraper' terminou com sucesso (status 0), mesmo que tenha erros internos reportados no JSON
+        if: success() || steps.scraper.outcome == 'success'
         id: montar_corpo
         run: |
           echo "Verificando resultado da execução..."
           JSON_FILE="info_execucao.json"
+          SUBJECT="" # Initialize variables
+          BODY=""
+          ATTACHMENT_NAME=""
 
           if [ ! -f "$JSON_FILE" ]; then
             echo "::error::Arquivo $JSON_FILE não foi encontrado! O script Python pode não ter gerado."
-            # Define um corpo de e-mail de erro específico para este caso
-            SUBJECT="⚠️ Problema no Scraper STJ - ${{ steps.data.outputs.ontem }} - JSON Ausente"
+            SUBJECT="⚠️ Problema no Scraper STJ - $(date +'%d/%m/%Y') - JSON Ausente"
+            BODY=$(cat <<EOF
+          Prezado(a),
+
+          Ocorreu um problema inesperado durante a execução do scraper STJ (origem TJGO) para a data de $(date +'%d/%m/%Y').
+
+          O script Python concluiu a execução, mas o arquivo de resultados '$JSON_FILE' não foi encontrado.
+
+          Isso pode indicar um erro interno grave no script que impediu a criação do arquivo de status.
+
+          Verifique os logs da execução no GitHub Actions:
+          ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+          Atenciosamente,
+          Sistema automatizado - GitHub Actions
+          EOF
+          )
+            ATTACHMENT_NAME=""
+          elif ! jq empty "$JSON_FILE" > /dev/null 2>&1; then
+            echo "::error::Arquivo $JSON_FILE está corrompido ou não é um JSON válido!"
+            SUBJECT="❌ ERRO no Scraper STJ - $(date +'%d/%m/%Y') - JSON Inválido"
             BODY=$(cat <<EOF
             Prezado(a),
 
-            Ocorreu um problema inesperado durante a execução do scraper STJ (origem TJGO) para a data de ${{ steps.data.outputs.ontem }}.
+            Ocorreu um erro crítico durante a execução do scraper STJ (origem TJGO) para a data de $(date +'%d/%m/%Y').
 
-            O script Python concluiu a execução, mas o arquivo de resultados '$JSON_FILE' não foi encontrado.
+            O arquivo de status '$JSON_FILE' foi encontrado, mas está corrompido ou não é um JSON válido.
 
-            Isso pode indicar um erro interno grave no script que impediu a criação do arquivo de status.
-
-            Verifique os logs da execução no GitHub Actions:
+            Verifique os logs da execução e o conteúdo do arquivo no artefato (se disponível) no GitHub Actions:
             ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
             Atenciosamente,
@@ -123,142 +144,127 @@ jobs:
             )
             ATTACHMENT_NAME=""
           else
-            echo "Arquivo $JSON_FILE encontrado. Lendo dados..."
-            # Valida se o JSON é válido antes de usar jq
-            if ! jq empty "$JSON_FILE" > /dev/null 2>&1; then
-              echo "::error::Arquivo $JSON_FILE está corrompido ou não é um JSON válido!"
-              SUBJECT="❌ ERRO no Scraper STJ - ${{ steps.data.outputs.ontem }} - JSON Inválido"
+            # O JSON existe e é válido, prossiga com a extração
+            echo "Arquivo $JSON_FILE encontrado e válido. Lendo dados..."
+            json_data=$(cat "$JSON_FILE")
+            echo "Conteúdo do JSON:"
+            echo "$json_data" | jq . # Printa o JSON no log para debug
+
+            # Extrai dados do JSON válido
+            erro=$(echo "$json_data" | jq -r '.erro_critico // ""')
+            data_ini=$(echo "$json_data" | jq -r '.data_inicial // "N/A"')
+            data_fim=$(echo "$json_data" | jq -r '.data_final // "N/A"')
+            orgao=$(echo "$json_data" | jq -r '.orgao_origem // "N/A"')
+            qtd_site=$(echo "$json_data" | jq -r '.qtd_resultados_site // "?"')
+            qtd_hcs=$(echo "$json_data" | jq -r '.qtd_hcs // 0')
+            pags_total=$(echo "$json_data" | jq -r '.paginas_total // 0')
+            pags_ok=$(echo "$json_data" | jq -r '.paginas_processadas // 0')
+            horario=$(echo "$json_data" | jq -r '.horario_finalizacao // "N/A"')
+            duracao=$(echo "$json_data" | jq -r '.duracao_segundos // "?"')
+            arquivo_gerado=$(echo "$json_data" | jq -r '.arquivo_gerado // ""') # Nome do arquivo .xlsx
+
+            # Monta o corpo do e-mail baseado nos dados extraídos
+            # Bloco if/elif/else interno para definir SUBJECT, BODY, ATTACHMENT_NAME
+            if [ -n "$erro" ] && [ "$erro" != "null" ]; then
+              # CENÁRIO 1: Erro crítico reportado no JSON
+              echo "Montando e-mail de ERRO CRÍTICO reportado pelo script..."
+              SUBJECT="❌ ERRO no Scraper STJ - ${data_ini}"
               BODY=$(cat <<EOF
               Prezado(a),
 
-              Ocorreu um erro crítico durante a execução do scraper STJ (origem TJGO) para a data de ${{ steps.data.outputs.ontem }}.
+              Ocorreu um erro crítico durante a execução do scraper de HCs no STJ (origem $orgao) para o período de ${data_ini} a ${data_fim}.
 
-              O arquivo de status '$JSON_FILE' foi encontrado, mas está corrompido ou não é um JSON válido.
+              O erro reportado pelo script foi:
+              ${erro}
 
-              Verifique os logs da execução e o conteúdo do arquivo no artefato (se disponível) no GitHub Actions:
-              ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+              Detalhes da execução:
+              - Resultados encontrados pelo site: ${qtd_site}
+              - HCs efetivamente extraídos: ${qtd_hcs}
+              - Páginas processadas: ${pags_ok} de ${pags_total} (estimado)
+              - Script finalizado em: ${horario} (Duração: ${duracao}s)
+
+              Nenhum relatório em anexo devido ao erro.
+
+              Recomenda-se verificar manualmente no site do STJ:
+              https://processo.stj.jus.br/processo/pesquisa/?aplicacao=processos.ea
+
+              Link para a execução no GHA: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
               Atenciosamente,
               Sistema automatizado - GitHub Actions
               EOF
               )
-              ATTACHMENT_NAME=""
+              ATTACHMENT_NAME="" # Garante que não anexa nada
+            elif [ "$qtd_hcs" -gt 0 ] && [ -n "$arquivo_gerado" ] && [ -f "$arquivo_gerado" ]; then
+              # CENÁRIO 2: Sucesso com HCs encontrados e arquivo gerado
+              echo "Montando e-mail de SUCESSO com HCs e anexo..."
+              SUBJECT="✅ Relatório HCs STJ (Origem ${orgao}) - ${data_ini}"
+              BODY=$(cat <<EOF
+              Prezado(a),
+
+              Segue em anexo o relatório de Habeas Corpus (HCs) autuados no STJ, com origem no ${orgao}, referente ao período de ${data_ini} a ${data_fim}.
+
+              Resumo da execução:
+              - Resultados encontrados pelo site: ${qtd_site}
+              - HCs efetivamente extraídos: ${qtd_hcs} (detalhes no anexo)
+              - Páginas processadas: ${pags_ok} de ${pags_total} (estimado)
+              - Script finalizado em: ${horario} (Duração: ${duracao}s)
+
+              O arquivo '${arquivo_gerado}' está anexado a este e-mail.
+
+              Esta automação tem como objetivo auxiliar no acompanhamento processual, mas **não substitui a conferência manual nos canais oficiais do STJ**.
+
+              Link para a execução no GHA: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+              Atenciosamente,
+              Sistema automatizado - GitHub Actions
+              EOF
+              )
+              ATTACHMENT_NAME="$arquivo_gerado" # Define o nome do anexo
             else
-              # Extrai dados do JSON válido
-              json_data=$(cat "$JSON_FILE")
-              echo "$json_data" | jq . # Printa o JSON no log para debug
+              # CENÁRIO 3: Sucesso, mas nenhum HC encontrado (ou arquivo não gerado)
+              echo "Montando e-mail de SUCESSO sem HCs encontrados..."
+              SUBJECT="ℹ️ Nenhum HC encontrado STJ (Origem ${orgao}) - ${data_ini}"
+              BODY=$(cat <<EOF
+              Prezado(a),
 
-              erro=$(echo "$json_data" | jq -r '.erro_critico // ""')
-              data_ini=$(echo "$json_data" | jq -r '.data_inicial // "N/A"')
-              data_fim=$(echo "$json_data" | jq -r '.data_final // "N/A"')
-              orgao=$(echo "$json_data" | jq -r '.orgao_origem // "N/A"')
-              qtd_site=$(echo "$json_data" | jq -r '.qtd_resultados_site // "?"')
-              qtd_hcs=$(echo "$json_data" | jq -r '.qtd_hcs // 0')
-              pags_total=$(echo "$json_data" | jq -r '.paginas_total // 0')
-              pags_ok=$(echo "$json_data" | jq -r '.paginas_processadas // 0')
-              horario=$(echo "$json_data" | jq -r '.horario_finalizacao // "N/A"')
-              duracao=$(echo "$json_data" | jq -r '.duracao_segundos // "?"')
-              arquivo_gerado=$(echo "$json_data" | jq -r '.arquivo_gerado // ""') # Nome do arquivo .xlsx
+              Nenhum Habeas Corpus (HC) com origem no ${orgao} foi localizado ou extraído com sucesso no STJ para o período de ${data_ini} a ${data_fim}.
 
-              # Define o corpo do e-mail com base nos dados
-              if [ -n "$erro" ] && [ "$erro" != "null" ]; then
-                # CENÁRIO 1: Erro crítico reportado no JSON
-                echo "Montando e-mail de ERRO CRÍTICO reportado pelo script..."
-                SUBJECT="❌ ERRO no Scraper STJ - ${data_ini}"
-                BODY=$(cat <<EOF
-                Prezado(a),
+              Resumo da execução:
+              - Resultados encontrados pelo site: ${qtd_site}
+              - HCs efetivamente extraídos: ${qtd_hcs}
+              - Páginas processadas: ${pags_ok} de ${pags_total} (estimado)
+              - Script finalizado em: ${horario} (Duração: ${duracao}s)
 
-                Ocorreu um erro crítico durante a execução do scraper de HCs no STJ (origem $orgao) para o período de ${data_ini} a ${data_fim}.
+              Nenhum arquivo foi gerado ou anexado.
 
-                O erro reportado pelo script foi:
-                ${erro}
+              Esta automação tem como objetivo auxiliar no acompanhamento processual, mas **não substitui a conferência manual nos canais oficiais do STJ**.
 
-                Detalhes da execução:
-                - Resultados encontrados pelo site: ${qtd_site}
-                - HCs efetivamente extraídos: ${qtd_hcs}
-                - Páginas processadas: ${pags_ok} de ${pags_total} (estimado)
-                - Script finalizado em: ${horario} (Duração: ${duracao}s)
+              Link para a execução no GHA: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
-                Nenhum relatório em anexo devido ao erro.
+              Atenciosamente,
+              Sistema automatizado - GitHub Actions
+              EOF
+              )
+              ATTACHMENT_NAME="" # Garante que não anexa nada
+            fi # Fim do if/elif/else interno que define SUBJECT/BODY/ATTACHMENT
+          fi # Fim do if/elif/else que verifica a existência e validade do JSON_FILE
 
-                Recomenda-se verificar manualmente no site do STJ:
-                https://processo.stj.jus.br/processo/pesquisa/?aplicacao=processos.ea
-
-                Link para a execução no GHA: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-
-                Atenciosamente,
-                Sistema automatizado - GitHub Actions
-                EOF
-                )
-                ATTACHMENT_NAME="" # Garante que não anexa nada
-
-              elif [ "$qtd_hcs" -gt 0 ] && [ -n "$arquivo_gerado" ] && [ -f "$arquivo_gerado" ]; then
-                # CENÁRIO 2: Sucesso com HCs encontrados e arquivo gerado
-                echo "Montando e-mail de SUCESSO com HCs e anexo..."
-                SUBJECT="✅ Relatório HCs STJ (Origem ${orgao}) - ${data_ini}"
-                BODY=$(cat <<EOF
-                Prezado(a),
-
-                Segue em anexo o relatório de Habeas Corpus (HCs) autuados no STJ, com origem no ${orgao}, referente ao período de ${data_ini} a ${data_fim}.
-
-                Resumo da execução:
-                - Resultados encontrados pelo site: ${qtd_site}
-                - HCs efetivamente extraídos: ${qtd_hcs} (detalhes no anexo)
-                - Páginas processadas: ${pags_ok} de ${pags_total} (estimado)
-                - Script finalizado em: ${horario} (Duração: ${duracao}s)
-
-                O arquivo '${arquivo_gerado}' está anexado a este e-mail.
-
-                Esta automação tem como objetivo auxiliar no acompanhamento processual, mas **não substitui a conferência manual nos canais oficiais do STJ**.
-
-                Link para a execução no GHA: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-
-                Atenciosamente,
-                Sistema automatizado - GitHub Actions
-                EOF
-                )
-                ATTACHMENT_NAME="$arquivo_gerado" # Define o nome do anexo
-
-              else
-                # CENÁRIO 3: Sucesso, mas nenhum HC encontrado (ou arquivo não gerado por algum motivo)
-                echo "Montando e-mail de SUCESSO sem HCs encontrados..."
-                SUBJECT="ℹ️ Nenhum HC encontrado STJ (Origem ${orgao}) - ${data_ini}"
-                BODY=$(cat <<EOF
-                Prezado(a),
-
-                Nenhum Habeas Corpus (HC) com origem no ${orgao} foi localizado ou extraído com sucesso no STJ para o período de ${data_ini} a ${data_fim}.
-
-                Resumo da execução:
-                - Resultados encontrados pelo site: ${qtd_site}
-                - HCs efetivamente extraídos: ${qtd_hcs}
-                - Páginas processadas: ${pags_ok} de ${pags_total} (estimado)
-                - Script finalizado em: ${horario} (Duração: ${duracao}s)
-
-                Nenhum arquivo foi gerado ou anexado.
-
-                Esta automação tem como objetivo auxiliar no acompanhamento processual, mas **não substitui a conferência manual nos canais oficiais do STJ**.
-
-                Link para a execução no GHA: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-
-                Atenciosamente,
-                Sistema automatizado - GitHub Actions
-                EOF
-                )
-                ATTACHMENT_NAME="" # Garante que não anexa nada
-                fi
-              fi
-            fi
-          fi
           # Exporta as variáveis para o próximo passo
           echo "Exportando variáveis para o passo de e-mail..."
+          # Usando GITHUB_OUTPUT para subject e attachment name
           echo "email_subject=$SUBJECT" >> $GITHUB_OUTPUT
           echo "attachment_name=$ATTACHMENT_NAME" >> $GITHUB_OUTPUT
-          # Exporta o corpo multilinha para GITHUB_ENV
+          # Usando GITHUB_ENV para o corpo multilinha do e-mail
           echo "email_body<<EOF" >> $GITHUB_ENV
           echo "$BODY" >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
-          # Exporta o JSON original como output para outros jobs, se necessário
-          echo "json_data=$(jq -c . "$JSON_FILE" || echo '{}')" >> $GITHUB_OUTPUT
+          # Exporta o JSON original como output para outros jobs, se necessário (opcional)
+          if [ -f "$JSON_FILE" ] && jq empty "$JSON_FILE" > /dev/null 2>&1; then
+            echo "json_data=$(jq -c . "$JSON_FILE")" >> $GITHUB_OUTPUT
+          else
+            echo "json_data={}" >> $GITHUB_OUTPUT
+          fi
 
 
       - name: 📤 Enviar E-mail
