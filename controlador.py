@@ -3,7 +3,6 @@
 import logging
 from selenium.common.exceptions import TimeoutException, WebDriverException
 from navegador import iniciar_navegador
-from config import
 from formulario import preencher_formulario
 from paginador import navegar_paginas_e_extrair
 from exportador import exportar_resultados
