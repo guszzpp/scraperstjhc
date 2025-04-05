@@ -245,6 +245,7 @@ jobs:
                 EOF
                 )
                 ATTACHMENT_NAME="" # Garante que não anexa nada
+                fi
               fi
             fi
           fi
