@@ -139,9 +139,3 @@ Um e-mail será enviado ao `EMAIL_DESTINATARIO` após cada execução agendada o
 
 
 *(Nota: O arquivo `info_execucao.json` é gerado durante a execução do `main.py` e usado pelo workflow, mas geralmente não é versionado).*
-
----
-
-## 📄 Licença
-
-Distribuído sob a licença MIT. Veja `LICENSE` para mais informações (se houver um arquivo LICENSE, caso contrário, pode remover esta linha ou adicionar a licença).
