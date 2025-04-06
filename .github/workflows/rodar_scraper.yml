@@ -121,8 +121,6 @@ jobs:
           echo "email_body<<EOF" >> $GITHUB_ENV
           echo "$BODY" >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
-          # Exporta um resumo do corpo para os outputs do job (opcional)
-          echo "email_body_summary=$(echo "$BODY" | head -n 3)" >> $GITHUB_OUTPUT
 
       # PASSO DE ENVIO DE E-MAIL: Ajustado para usar os outputs corretos
       - name: 📤 Enviar E-mail
