@@ -123,7 +123,6 @@ jobs:
 
       # PASSO DE ENVIO DE E-MAIL: Ajustado para usar os outputs corretos
       - name: 📤 Enviar E-mail
-        # Roda sempre que os passos anteriores não falharam criticamente
         if: always() && (steps.falha_script.outcome == 'success' || steps.montar_corpo.outcome == 'success')
         uses: dawidd6/action-send-mail@v3
         with:
@@ -131,15 +130,16 @@ jobs:
           server_port: 465
           username: ${{ secrets.EMAIL_USUARIO }}
           password: ${{ secrets.EMAIL_SENHA }}
-          # Usa os outputs dos passos anteriores. Um deles terá rodado.
           subject: ${{ steps.falha_script.outputs.email_subject || steps.montar_corpo.outputs.email_subject }}
-          # Corpo vem do GITHUB_ENV definido no passo anterior que rodou
           body: ${{ env.email_body }}
           to: ${{ secrets.EMAIL_DESTINATARIO }}
-          from: Automação STJ <${{ secrets.EMAIL_USUARIO }}> # Nome amigável
-          # Anexa o arquivo baseado no output 'attachment_name'
-          files: ./${{ steps.montar_corpo.outputs.attachment_name }}
-          # Garante que só anexa se o arquivo realmente existir no runner
+          from: Automação STJ <${{ secrets.EMAIL_USUARIO }}>
+
+          # **** MODIFICAÇÃO AQUI ****
+          # Usar caminho absoluto com GITHUB_WORKSPACE
+          # Verifica se attachment_name não está vazio antes de construir o caminho
+          files: ${{ steps.montar_corpo.outputs.attachment_name && format('{0}/{1}', github.workspace, steps.montar_corpo.outputs.attachment_name) || '' }}
+
           attach_existing_only: true
 
       # NOVO PASSO OPCIONAL: Fazer upload dos arquivos gerados como artefatos para debug
