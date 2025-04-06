@@ -138,9 +138,7 @@ jobs:
           # **** MODIFICAÇÃO AQUI ****
           # Usar caminho absoluto com GITHUB_WORKSPACE
           # Verifica se attachment_name não está vazio antes de construir o caminho
-          files: ${{ steps.montar_corpo.outputs.attachment_name && format('{0}/{1}', github.workspace, steps.montar_corpo.outputs.attachment_name) || '' }}
-
-          attach_existing_only: true
+          attachments: ${{ steps.montar_corpo.outputs.attachment_name && format('{0}/{1}', github.workspace, steps.montar_corpo.outputs.attachment_name) || '' }}
 
       # NOVO PASSO OPCIONAL: Fazer upload dos arquivos gerados como artefatos para debug
       - name: 💾 Upload Arquivos Gerados (Debug)
