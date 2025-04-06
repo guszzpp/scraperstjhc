@@ -138,7 +138,7 @@ jobs:
           to: ${{ secrets.EMAIL_DESTINATARIO }}
           from: Automação STJ <${{ secrets.EMAIL_USUARIO }}> # Nome amigável
           # Anexa o arquivo baseado no output 'attachment_name'
-          files: ${{ steps.montar_corpo.outputs.attachment_name }}
+          files: ./${{ steps.montar_corpo.outputs.attachment_name }}
           # Garante que só anexa se o arquivo realmente existir no runner
           attach_existing_only: true
 
