@@ -6,7 +6,8 @@ import logging
 from datetime import datetime
 from selenium.common.exceptions import TimeoutException, WebDriverException
 from selenium.webdriver.support.ui import WebDriverWait
-import json # <--- IMPORTADO
+from pathlib import Path # Usar Path para lidar com arquivos
+from textwrap import dedent # Útil para strings multi-linhas
 
 # Certifique-se que os outros arquivos .py estão na mesma pasta
 from navegador import iniciar_navegador
@@ -14,10 +15,18 @@ from extrator import extrair_detalhes_processo
 from exportador import exportar_resultados
 from paginador import navegar_paginas_e_extrair
 from formulario import preencher_formulario
-from config import ONTEM, ORGAO_ORIGEM, URL_PESQUISA # Importa URL também
+from config import ONTEM, ORGAO_ORIGEM, URL_PESQUISA
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+# Configuração do Logging
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s",
+    handlers=[
+        logging.StreamHandler(sys.stdout) # Garante output no console/log do Actions
+    ]
+)
 
+# --- Função buscar_processos (praticamente inalterada) ---
 def buscar_processos(data_inicial, data_final):
     """
     Executa o fluxo de busca e retorna estatísticas e nome do arquivo gerado.
@@ -38,19 +47,17 @@ def buscar_processos(data_inicial, data_final):
 
     try:
         driver = iniciar_navegador()
-        # Aumentar um pouco o wait principal pode ajudar em GHA
-        wait = WebDriverWait(driver, 20)
+        wait = WebDriverWait(driver, 20) # Aumentar wait pode ajudar
 
         preencher_formulario(driver, wait, data_inicial, data_final)
         logging.info("✅ Formulário preenchido.")
 
-        # 🔎 Captura do total de resultados do site
-        try:
-            # Espera pela mensagem OU pela lista de resultados como indicador de carga
-            wait.until(lambda d: d.find_element("class name", "clsMensagemLinha") or d.find_element("class name", "clsListaProcessoFormatoVerticalLinha"))
-            time.sleep(1) # Pequena pausa após carregar
+        # Espera pela mensagem OU pela lista como indicador de carga
+        wait.until(lambda d: d.find_element("class name", "clsMensagemLinha") or d.find_element("class name", "clsListaProcessoFormatoVerticalLinha"))
+        time.sleep(1) # Pequena pausa
 
-            # Tenta pegar a mensagem especificamente
+        # Captura do total de resultados (opcional, trata erro)
+        try:
             mensagem = driver.find_element("class name", "clsMensagemLinha")
             texto = mensagem.text.strip()
             match = re.search(r'(\d+)', texto)
@@ -60,16 +67,13 @@ def buscar_processos(data_inicial, data_final):
             else:
                  logging.warning(f"⚠️ Não foi possível extrair número da mensagem: '{texto}'")
         except Exception as e:
-            # Se a mensagem não aparecer (pode ir direto para resultados), não é erro fatal
             logging.warning(f"ℹ️ Não foi possível capturar o total de registros da mensagem (pode não haver mensagem): {e}")
 
         logging.info("🔍 Iniciando navegação nas páginas de resultados...")
-        # Passar data_inicial para ser usada como 'data_autuacao' padrão nos resultados
         resultados, relatorio_paginas = navegar_paginas_e_extrair(driver, wait, extrair_detalhes_processo, data_inicial)
 
         paginas_processadas = len(relatorio_paginas)
-        # A melhor estimativa para total_paginas é o número de páginas processadas
-        total_paginas = paginas_processadas
+        total_paginas = paginas_processadas # Melhor estimativa
 
     except TimeoutException as e:
         erro_critico = f"Timeout ({type(e).__name__}): {str(e)}"
@@ -97,44 +101,150 @@ def buscar_processos(data_inicial, data_final):
             nome_arquivo_gerado = exportar_resultados(resultados, data_inicial, data_final)
         except Exception as e:
              logging.error(f"❌ Erro ao exportar resultados para Excel: {e}")
-             erro_critico = erro_critico or f"Erro ao exportar Excel: {e}" # Adiciona ou substitui erro
+             erro_critico = erro_critico or f"Erro ao exportar Excel: {e}"
     elif not erro_critico:
         logging.info("✅ Nenhum Habeas Corpus encontrado ou extraído com sucesso.")
-    else: # Se houve erro crítico e não há resultados
+    else:
          logging.warning("⚠️ Extração interrompida por erro, nenhum HC foi extraído.")
-
 
     if relatorio_paginas:
         logging.info("📄 Relatório de páginas processadas:")
         for linha in relatorio_paginas:
             logging.info(f"   - {linha}")
     elif not erro_critico:
-        logging.info("⚠️ Nenhuma página foi processada (talvez nenhum resultado encontrado).")
+        logging.info("⚠️ Nenhuma página foi processada.")
 
     horario_finalizacao = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
     duracao = (datetime.now() - horario_inicio).total_seconds()
     logging.info(f"✅ Execução finalizada às {horario_finalizacao} (Duração: {duracao:.2f}s)")
 
-    # Cria o dicionário com as informações para o JSON
+    # Compila as estatísticas
     stats = {
         "data_inicial": data_inicial,
         "data_final": data_final,
         "orgao_origem": ORGAO_ORIGEM,
-        "qtd_resultados_site": total_resultados_site, # Quantos o site disse ter encontrado
-        "qtd_hcs": qtd_hcs_extraidos,         # Quantos HCs foram efetivamente extraídos
-        "paginas_total": total_paginas,           # Melhor estimativa do total de páginas
-        "paginas_processadas": paginas_processadas, # Quantas páginas foram de fato iteradas
+        "qtd_resultados_site": total_resultados_site,
+        "qtd_hcs": qtd_hcs_extraidos,
+        "paginas_total": total_paginas,
+        "paginas_processadas": paginas_processadas,
         "horario_finalizacao": horario_finalizacao,
         "duracao_segundos": round(duracao, 2),
-        "erro_critico": erro_critico, # Será None se não houver erro crítico
-        "arquivo_gerado": nome_arquivo_gerado # Nome do arquivo .xlsx se foi gerado
+        "erro_critico": erro_critico,
+        "arquivo_gerado": nome_arquivo_gerado # Nome do .xlsx ou None
     }
 
-    # Retorna o dicionário de estatísticas e o nome do arquivo
-    return stats, nome_arquivo_gerado
+    return stats # Retorna apenas o dicionário de estatísticas
 
+# --- Função para gerar componentes do e-mail ---
+def gerar_componentes_email(stats):
+    """
+    Gera o assunto, corpo e nome do anexo do e-mail com base nas estatísticas.
+    """
+    # Extrai dados das estatísticas com valores padrão seguros
+    erro = stats.get("erro_critico")
+    data_ini = stats.get("data_inicial", "N/A")
+    data_fim = stats.get("data_final", "N/A")
+    orgao = stats.get("orgao_origem", "N/A")
+    qtd_site = stats.get("qtd_resultados_site", "?")
+    qtd_hcs = stats.get("qtd_hcs", 0)
+    pags_total = stats.get("paginas_total", 0)
+    pags_ok = stats.get("paginas_processadas", 0)
+    horario = stats.get("horario_finalizacao", "N/A")
+    duracao = stats.get("duracao_segundos", "?")
+    arquivo_gerado = stats.get("arquivo_gerado") # Pode ser None
 
-# Execução principal
+    subject = ""
+    body = ""
+    attachment_name = "" # Vazio por padrão
+
+    # Link para a run atual (não disponível diretamente no Python, mas pode ser inferido ou omitido)
+    # Para simplificar, vamos omiti-lo aqui, ele pode ser adicionado no YAML se necessário,
+    # ou pode-se tentar ler variáveis de ambiente do GHA (mais complexo).
+    gha_link_text = "" # Opcional: "Link para a execução no GHA: [link]"
+
+    # Lógica para definir Subject, Body e Attachment Name
+    if erro:
+        # CENÁRIO 1: Erro crítico
+        subject = f"❌ ERRO no Scraper STJ - {data_ini}"
+        body = dedent(f"""\
+            Prezado(a),
+
+            Ocorreu um erro crítico durante a execução do scraper de HCs no STJ (origem {orgao}) para o período de {data_ini} a {data_fim}.
+
+            O erro reportado pelo script foi:
+            {erro}
+
+            Detalhes da execução (podem estar incompletos):
+            - Resultados encontrados pelo site: {qtd_site}
+            - HCs efetivamente extraídos: {qtd_hcs}
+            - Páginas processadas: {pags_ok} de {pags_total} (estimado)
+            - Script finalizado em: {horario} (Duração: {duracao}s)
+
+            Nenhum relatório em anexo devido ao erro.
+
+            Recomenda-se verificar manualmente no site do STJ:
+            {URL_PESQUISA}
+
+            {gha_link_text}
+
+            Atenciosamente,
+            Sistema automatizado
+        """)
+        attachment_name = "" # Garante que não tenta anexar
+
+    elif qtd_hcs > 0 and arquivo_gerado and Path(arquivo_gerado).is_file():
+        # CENÁRIO 2: Sucesso com HCs e arquivo existe
+        subject = f"✅ Relatório HCs STJ (Origem {orgao}) - {data_ini}"
+        body = dedent(f"""\
+            Prezado(a),
+
+            Segue em anexo o relatório de Habeas Corpus (HCs) autuados no STJ, com origem no {orgao}, referente ao período de {data_ini} a {data_fim}.
+
+            Resumo da execução:
+            - Resultados encontrados pelo site: {qtd_site}
+            - HCs efetivamente extraídos: {qtd_hcs} (detalhes no anexo)
+            - Páginas processadas: {pags_ok} de {pags_total} (estimado)
+            - Script finalizado em: {horario} (Duração: {duracao}s)
+
+            O arquivo '{arquivo_gerado}' está anexado a este e-mail.
+
+            Esta automação tem como objetivo auxiliar no acompanhamento processual, mas **não substitui a conferência manual nos canais oficiais do STJ**.
+
+            {gha_link_text}
+
+            Atenciosamente,
+            Sistema automatizado
+        """)
+        attachment_name = arquivo_gerado # Define o nome do anexo
+
+    else:
+        # CENÁRIO 3: Sucesso sem HCs ou arquivo não gerado/encontrado
+        subject = f"ℹ️ Nenhum HC encontrado STJ (Origem {orgao}) - {data_ini}"
+        body = dedent(f"""\
+            Prezado(a),
+
+            Nenhum Habeas Corpus (HC) com origem no {orgao} foi localizado ou extraído com sucesso no STJ para o período de {data_ini} a {data_fim}.
+
+            Resumo da execução:
+            - Resultados encontrados pelo site: {qtd_site}
+            - HCs efetivamente extraídos: {qtd_hcs}
+            - Páginas processadas: {pags_ok} de {pags_total} (estimado)
+            - Script finalizado em: {horario} (Duração: {duracao}s)
+
+            Nenhum arquivo foi gerado ou anexado.
+
+            Esta automação tem como objetivo auxiliar no acompanhamento processual, mas **não substitui a conferência manual nos canais oficiais do STJ**.
+
+            {gha_link_text}
+
+            Atenciosamente,
+            Sistema automatizado
+        """)
+        attachment_name = "" # Garante que não tenta anexar
+
+    return subject, body, (attachment_name or "") # Garante string vazia se for None
+
+# --- Execução Principal ---
 if __name__ == "__main__":
     if len(sys.argv) == 3:
         data_ini_arg, data_fim_arg = sys.argv[1], sys.argv[2]
@@ -150,37 +260,47 @@ if __name__ == "__main__":
     date_pattern = re.compile(r"^\d{2}/\d{2}/\d{4}$")
     if not date_pattern.match(data_ini_arg) or not date_pattern.match(data_fim_arg):
         logging.error(f"❌ Formato de data inválido. Recebido: INI='{data_ini_arg}', FIM='{data_fim_arg}'. Use DD/MM/AAAA.")
-        # Cria um JSON de erro para o workflow saber o que aconteceu
+        # Prepara um e-mail de erro específico para data inválida
         error_stats = {
             "data_inicial": data_ini_arg, "data_final": data_fim_arg, "orgao_origem": ORGAO_ORIGEM,
-            "qtd_resultados_site": -1, "qtd_hcs": 0, "paginas_total": 0, "paginas_processadas": 0,
-            "horario_finalizacao": datetime.now().strftime("%d/%m/%Y %H:%M:%S"), "duracao_segundos": 0,
-            "erro_critico": "Formato de data inválido recebido.", "arquivo_gerado": None
+            "horario_finalizacao": datetime.now().strftime("%d/%m/%Y %H:%M:%S"),
+            "erro_critico": "Formato de data inválido recebido nos argumentos."
         }
+        email_subject, email_body, email_attachment = gerar_componentes_email(error_stats)
+        # Tenta salvar os arquivos de email mesmo em erro, para notificar
         try:
-            with open("info_execucao.json", "w", encoding="utf-8") as f:
-                json.dump(error_stats, f, ensure_ascii=False, indent=4)
-            logging.info("ℹ️ Informações de erro (data inválida) salvas em info_execucao.json")
-        except Exception as e:
-             logging.error(f"⚠️ Erro crítico ao salvar JSON de erro de data: {e}")
+            Path("email_subject.txt").write_text(email_subject, encoding='utf-8')
+            Path("email_body.txt").write_text(email_body, encoding='utf-8')
+            Path("attachment.txt").write_text(email_attachment, encoding='utf-8')
+            logging.info("ℹ️ Componentes de e-mail de erro (data inválida) salvos.")
+        except Exception as e_write:
+            logging.error(f"⚠️ Erro crítico ao salvar arquivos de e-mail de erro de data: {e_write}")
         sys.exit(1) # Sai com erro
 
-    # Chama a função principal
-    execution_stats, result_filename = buscar_processos(data_ini_arg, data_fim_arg)
+    # Chama a função principal para obter as estatísticas
+    execution_stats = buscar_processos(data_ini_arg, data_fim_arg)
 
-    # Salva as estatísticas no arquivo JSON esperado pelo workflow
+    # Gera os componentes do e-mail a partir das estatísticas
+    logging.info("⚙️ Gerando componentes do e-mail...")
+    email_subject, email_body, email_attachment = gerar_componentes_email(execution_stats)
+
+    # Salva os componentes em arquivos de texto
     try:
-        with open("info_execucao.json", "w", encoding="utf-8") as f:
-            json.dump(execution_stats, f, ensure_ascii=False, indent=4)
-        logging.info("✅ Informações de execução salvas em info_execucao.json")
-    except Exception as e:
-        logging.error(f"❌ Erro crítico ao salvar info_execucao.json: {e}")
-        # Se não conseguir salvar o JSON, o workflow não terá os dados.
-        # É importante sair com erro para indicar a falha.
-        sys.exit(1)
+        Path("email_subject.txt").write_text(email_subject, encoding='utf-8')
+        logging.info(f"✅ Assunto do e-mail salvo em email_subject.txt")
 
-    # Opcional: Sair com código de erro se houve erro crítico durante a busca
-    # Isso fará o passo 'Rodar o scraper' no GHA falhar explicitamente.
+        Path("email_body.txt").write_text(email_body, encoding='utf-8')
+        logging.info(f"✅ Corpo do e-mail salvo em email_body.txt")
+
+        Path("attachment.txt").write_text(email_attachment, encoding='utf-8')
+        logging.info(f"✅ Nome do anexo salvo em attachment.txt (conteúdo: '{email_attachment}')")
+
+    except Exception as e_write:
+        logging.error(f"❌ Erro crítico ao salvar arquivos de componentes do e-mail: {e_write}")
+        # Se não conseguir salvar os arquivos, o workflow não terá os dados.
+        sys.exit(1) # Sai com erro para indicar falha grave
+
+    # Verifica se houve erro crítico durante a busca para definir o status final
     if execution_stats.get("erro_critico"):
        logging.error("Finalizando com status de erro devido a erro crítico durante a execução.")
        sys.exit(1)
