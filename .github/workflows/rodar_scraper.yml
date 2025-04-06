@@ -13,7 +13,6 @@ jobs:
     outputs:
       # json_output removido
       email_subject: ${{ steps.montar_corpo.outputs.email_subject || 'Relatório Scraper STJ' }}
-      email_body_summary: ${{ steps.montar_corpo.outputs.email_body_summary || 'Corpo do e-mail não gerado.' }} # Summary, not full body
       attachment_name: ${{ steps.montar_corpo.outputs.attachment_name || '' }}
 
     steps:
