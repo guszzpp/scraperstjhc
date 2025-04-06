@@ -148,7 +148,7 @@ jobs:
       # NOVO PASSO OPCIONAL: Fazer upload dos arquivos gerados como artefatos para debug
       - name: 💾 Upload Arquivos Gerados (Debug)
         if: always() # Sempre tenta fazer upload
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: arquivos-gerados-pelo-script
           path: |
