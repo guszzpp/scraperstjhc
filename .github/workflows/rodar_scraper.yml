@@ -1,288 +1,86 @@
-name: Rodar scraper diariamente STJ (Origem TJGO)
+name: Rodar scraper diariamente
 
 on:
   schedule:
-    # Correção: '0 14 * * *' é 14:00 UTC, que são 11:00 Brasília (UTC-3)
-    # Se quiser 08:00 Brasília (UTC-3), precisa ser 11:00 UTC.
-    # Se quiser 11:00 Brasília (UTC-3), precisa ser 14:00 UTC.
-    # Vamos manter 11:00 Brasília (14:00 UTC)
-    - cron: '0 14 * * *'
-  workflow_dispatch: # Permite rodar manualmente pela interface do GitHub Actions
+    - cron: '0 3 * * *'  # 00:00 Brasília (UTC+0 = 03:00)
+  workflow_dispatch:
 
 jobs:
   run-scraper:
     runs-on: ubuntu-latest
-    # Define outputs para que outros jobs (se existirem) possam usar
-    outputs:
-      json_output: ${{ steps.montar_corpo.outputs.json_data || '{}' }}
-      email_subject: ${{ steps.montar_corpo.outputs.email_subject || 'Relatório Scraper STJ' }}
-      email_body: ${{ steps.montar_corpo.outputs.email_body || 'Corpo do e-mail não gerado.' }}
-      attachment_name: ${{ steps.montar_corpo.outputs.attachment_name || '' }}
 
     steps:
-      - name: ⬇️ Clonar o repositório
-        uses: actions/checkout@v4 # Usar versão mais recente
+      - name: Clonar o repositório
+        uses: actions/checkout@v3
 
-      - name: 🐍 Configurar Python
-        uses: actions/setup-python@v5 # Usar versão mais recente
+      - name: Configurar Python
+        uses: actions/setup-python@v4
         with:
-          python-version: '3.10' # Ou a versão que você usa
-          cache: 'pip' # Habilita cache para acelerar instalações futuras
+          python-version: '3.10'
 
-      - name: 📦 Instalar dependências Python
+      - name: Instalar dependências
         run: |
           python -m pip install --upgrade pip
-          # Assume que requirements.txt está na raiz do repositório
-          if [ -f requirements.txt ]; then
-            pip install -r requirements.txt
-          else
-            echo "::error::Arquivo requirements.txt não encontrado!"
-            exit 1
-          fi
+          pip install -r requirements.txt
 
-      - name: ⚙️ Instalar jq (para processar JSON)
-        run: sudo apt-get update && sudo apt-get install -y jq
-
-      - name: 📅 Definir data de ontem
+      - name: Definir data de hoje e ontem
         id: data
         run: |
-          # Garante que está pegando a data correta relativa ao UTC do runner
-          # Para ter certeza que é o dia anterior em Brasília, precisaríamos de ajustes de timezone
-          # Mas para um script diário, `yesterday` geralmente funciona bem.
-          ONTE_DATA=$(date -d 'yesterday' +'%d/%m/%Y')
-          echo "Data de ontem definida como: $ONTE_DATA"
-          echo "ontem=$ONTE_DATA" >> $GITHUB_OUTPUT
+          echo "hoje=$(date +'%d/%m/%Y')" >> $GITHUB_OUTPUT
+          echo "ontem=$(date -d 'yesterday' +'%d/%m/%Y')" >> $GITHUB_OUTPUT
 
-      - name: 🚀 Rodar o scraper Python
-        id: scraper
+      - name: Rodar o scraper
         run: |
-          echo "Executando script para a data: ${{ steps.data.outputs.ontem }}"
-          # Chama o script Python passando a data como argumento
-          python main.py "${{ steps.data.outputs.ontem }}"
-        # Importante: não usar continue-on-error aqui, a menos que você queira
-        # explicitamente tratar a falha do script nos passos seguintes.
-        # Se o script Python sair com erro (sys.exit(1)), este passo falhará.
+          python main.py
 
-      # Este passo SÓ RODA SE O PASSO ANTERIOR (scraper) FALHOU
-      - name: ⚠️ Preparar e-mail de FALHA do Script
-        if: failure() && steps.scraper.outcome == 'failure'
-        id: falha_script
+      - name: Verificar se há resultados
+        id: verifica_arquivo
         run: |
-          echo "::warning::O script Python falhou na execução!"
-          SUBJECT="❌ FALHA no Scraper STJ - ${{ steps.data.outputs.ontem }}"
-          BODY=$(cat <<EOF
-          Prezado(a),
-
-          Ocorreu uma FALHA durante a execução do script Python do scraper STJ (origem TJGO) para a data de ${{ steps.data.outputs.ontem }}.
-
-          O script não concluiu com sucesso (status de saída diferente de zero).
-
-          Por favor, verifique os logs detalhados da execução no GitHub Actions para identificar a causa raiz do problema.
-
-          Link para a execução: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-
-          Atenciosamente,
-          Sistema automatizado - GitHub Actions
-          EOF
-          )
-          # Exporta para uso no passo de envio de e-mail
-          echo "email_subject=$SUBJECT" >> $GITHUB_OUTPUT
-          # Usar GITHUB_ENV para corpo multilinha é mais robusto
-          echo "email_body<<EOF" >> $GITHUB_ENV
-          echo "$BODY" >> $GITHUB_ENV
-          echo "EOF" >> $GITHUB_ENV
-          echo "attachment_name=" >> $GITHUB_OUTPUT # Garante que não tentará anexar nada
-
-      # Este passo RODA SE O PASSO 'scraper' FOI BEM SUCEDIDO (mesmo que o script tenha encontrado erros internos e gerado JSON de erro)
-      - name: 📄 Extrair informações do JSON e Montar Corpo do E-mail (Sucesso/Erro Interno)
-        # Roda se o passo 'scraper' terminou com sucesso (status 0), mesmo que tenha erros internos reportados no JSON
-        if: success() || steps.scraper.outcome == 'success'
-        id: montar_corpo
-        run: |
-          echo "Verificando resultado da execução..."
-          JSON_FILE="info_execucao.json"
-          SUBJECT="" # Initialize variables
-          BODY=""
-          ATTACHMENT_NAME=""
-
-          if [ ! -f "$JSON_FILE" ]; then
-            echo "::error::Arquivo $JSON_FILE não foi encontrado! O script Python pode não ter gerado."
-            SUBJECT="⚠️ Problema no Scraper STJ - $(date +'%d/%m/%Y') - JSON Ausente"
-            BODY=$(cat <<EOF
-          Prezado(a),
-
-          Ocorreu um problema inesperado durante a execução do scraper STJ (origem TJGO) para a data de $(date +'%d/%m/%Y').
-
-          O script Python concluiu a execução, mas o arquivo de resultados '$JSON_FILE' não foi encontrado.
-
-          Isso pode indicar um erro interno grave no script que impediu a criação do arquivo de status.
-
-          Verifique os logs da execução no GitHub Actions:
-          ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-
-          Atenciosamente,
-          Sistema automatizado - GitHub Actions
-          EOF
-          )
-            ATTACHMENT_NAME=""
-          elif ! jq empty "$JSON_FILE" > /dev/null 2>&1; then
-            echo "::error::Arquivo $JSON_FILE está corrompido ou não é um JSON válido!"
-            SUBJECT="❌ ERRO no Scraper STJ - $(date +'%d/%m/%Y') - JSON Inválido"
-            BODY=$(cat <<EOF
-            Prezado(a),
-
-            Ocorreu um erro crítico durante a execução do scraper STJ (origem TJGO) para a data de $(date +'%d/%m/%Y').
-
-            O arquivo de status '$JSON_FILE' foi encontrado, mas está corrompido ou não é um JSON válido.
-
-            Verifique os logs da execução e o conteúdo do arquivo no artefato (se disponível) no GitHub Actions:
-            ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-
-            Atenciosamente,
-            Sistema automatizado - GitHub Actions
-            EOF
-            )
-            ATTACHMENT_NAME=""
-          else
-            # O JSON existe e é válido, prossiga com a extração
-            echo "Arquivo $JSON_FILE encontrado e válido. Lendo dados..."
-            json_data=$(cat "$JSON_FILE")
-            echo "Conteúdo do JSON:"
-            echo "$json_data" | jq . # Printa o JSON no log para debug
-
-            # Extrai dados do JSON válido
-            erro=$(echo "$json_data" | jq -r '.erro_critico // ""')
-            data_ini=$(echo "$json_data" | jq -r '.data_inicial // "N/A"')
-            data_fim=$(echo "$json_data" | jq -r '.data_final // "N/A"')
-            orgao=$(echo "$json_data" | jq -r '.orgao_origem // "N/A"')
-            qtd_site=$(echo "$json_data" | jq -r '.qtd_resultados_site // "?"')
-            qtd_hcs=$(echo "$json_data" | jq -r '.qtd_hcs // 0')
-            pags_total=$(echo "$json_data" | jq -r '.paginas_total // 0')
-            pags_ok=$(echo "$json_data" | jq -r '.paginas_processadas // 0')
-            horario=$(echo "$json_data" | jq -r '.horario_finalizacao // "N/A"')
-            duracao=$(echo "$json_data" | jq -r '.duracao_segundos // "?"')
-            arquivo_gerado=$(echo "$json_data" | jq -r '.arquivo_gerado // ""') # Nome do arquivo .xlsx
-
-            # Monta o corpo do e-mail baseado nos dados extraídos
-            # Bloco if/elif/else interno para definir SUBJECT, BODY, ATTACHMENT_NAME
-            if [ -n "$erro" ] && [ "$erro" != "null" ]; then
-              # CENÁRIO 1: Erro crítico reportado no JSON
-              echo "Montando e-mail de ERRO CRÍTICO reportado pelo script..."
-              SUBJECT="❌ ERRO no Scraper STJ - ${data_ini}"
-              BODY=$(cat <<EOF
-              Prezado(a),
-
-              Ocorreu um erro crítico durante a execução do scraper de HCs no STJ (origem $orgao) para o período de ${data_ini} a ${data_fim}.
-
-              O erro reportado pelo script foi:
-              ${erro}
-
-              Detalhes da execução:
-              - Resultados encontrados pelo site: ${qtd_site}
-              - HCs efetivamente extraídos: ${qtd_hcs}
-              - Páginas processadas: ${pags_ok} de ${pags_total} (estimado)
-              - Script finalizado em: ${horario} (Duração: ${duracao}s)
-
-              Nenhum relatório em anexo devido ao erro.
-
-              Recomenda-se verificar manualmente no site do STJ:
-              https://processo.stj.jus.br/processo/pesquisa/?aplicacao=processos.ea
-
-              Link para a execução no GHA: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-
-              Atenciosamente,
-              Sistema automatizado - GitHub Actions
-              EOF
-              )
-              ATTACHMENT_NAME="" # Garante que não anexa nada
-            elif [ "$qtd_hcs" -gt 0 ] && [ -n "$arquivo_gerado" ] && [ -f "$arquivo_gerado" ]; then
-              # CENÁRIO 2: Sucesso com HCs encontrados e arquivo gerado
-              echo "Montando e-mail de SUCESSO com HCs e anexo..."
-              SUBJECT="✅ Relatório HCs STJ (Origem ${orgao}) - ${data_ini}"
-              BODY=$(cat <<EOF
-              Prezado(a),
-
-              Segue em anexo o relatório de Habeas Corpus (HCs) autuados no STJ, com origem no ${orgao}, referente ao período de ${data_ini} a ${data_fim}.
-
-              Resumo da execução:
-              - Resultados encontrados pelo site: ${qtd_site}
-              - HCs efetivamente extraídos: ${qtd_hcs} (detalhes no anexo)
-              - Páginas processadas: ${pags_ok} de ${pags_total} (estimado)
-              - Script finalizado em: ${horario} (Duração: ${duracao}s)
-
-              O arquivo '${arquivo_gerado}' está anexado a este e-mail.
-
-              Esta automação tem como objetivo auxiliar no acompanhamento processual, mas **não substitui a conferência manual nos canais oficiais do STJ**.
-
-              Link para a execução no GHA: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-
-              Atenciosamente,
-              Sistema automatizado - GitHub Actions
-              EOF
-              )
-              ATTACHMENT_NAME="$arquivo_gerado" # Define o nome do anexo
-            else
-              # CENÁRIO 3: Sucesso, mas nenhum HC encontrado (ou arquivo não gerado)
-              echo "Montando e-mail de SUCESSO sem HCs encontrados..."
-              SUBJECT="ℹ️ Nenhum HC encontrado STJ (Origem ${orgao}) - ${data_ini}"
-              BODY=$(cat <<EOF
-              Prezado(a),
-
-              Nenhum Habeas Corpus (HC) com origem no ${orgao} foi localizado ou extraído com sucesso no STJ para o período de ${data_ini} a ${data_fim}.
-
-              Resumo da execução:
-              - Resultados encontrados pelo site: ${qtd_site}
-              - HCs efetivamente extraídos: ${qtd_hcs}
-              - Páginas processadas: ${pags_ok} de ${pags_total} (estimado)
-              - Script finalizado em: ${horario} (Duração: ${duracao}s)
-
-              Nenhum arquivo foi gerado ou anexado.
-
-              Esta automação tem como objetivo auxiliar no acompanhamento processual, mas **não substitui a conferência manual nos canais oficiais do STJ**.
-
-              Link para a execução no GHA: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-
-              Atenciosamente,
-              Sistema automatizado - GitHub Actions
-              EOF
-              )
-              ATTACHMENT_NAME="" # Garante que não anexa nada
-            fi # Fim do if/elif/else interno que define SUBJECT/BODY/ATTACHMENT
-          fi # Fim do if/elif/else que verifica a existência e validade do JSON_FILE
-
-          # Exporta as variáveis para o próximo passo
-          echo "Exportando variáveis para o passo de e-mail..."
-          # Usando GITHUB_OUTPUT para subject e attachment name
-          echo "email_subject=$SUBJECT" >> $GITHUB_OUTPUT
-          echo "attachment_name=$ATTACHMENT_NAME" >> $GITHUB_OUTPUT
-          # Usando GITHUB_ENV para o corpo multilinha do e-mail
-          echo "email_body<<EOF" >> $GITHUB_ENV
-          echo "$BODY" >> $GITHUB_ENV
-          echo "EOF" >> $GITHUB_ENV
-          # Exporta o JSON original como output para outros jobs, se necessário (opcional)
-          if [ -f "$JSON_FILE" ] && jq empty "$JSON_FILE" > /dev/null 2>&1; then
-            echo "json_data=$(jq -c . "$JSON_FILE")" >> $GITHUB_OUTPUT
-          else
-            echo "json_data={}" >> $GITHUB_OUTPUT
+          if ls hc_tjgo_*.xlsx 2>/dev/null; then
+            echo "resultado=true" >> $GITHUB_OUTPUT
+          elif [ -f resultados_vazio.txt ]; then
+            echo "resultado=false" >> $GITHUB_OUTPUT
           fi
 
-
-      - name: 📤 Enviar E-mail
-        # Roda sempre (se os passos anteriores não falharam criticamente),
-        # pois os passos anteriores (falha_script ou montar_corpo) SEMPRE definem um corpo/assunto.
+      - name: Enviar e-mail com resultados (HCs encontrados)
+        if: steps.verifica_arquivo.outputs.resultado == 'true'
         uses: dawidd6/action-send-mail@v3
         with:
           server_address: smtp.gmail.com
           server_port: 465
           username: ${{ secrets.EMAIL_USUARIO }}
           password: ${{ secrets.EMAIL_SENHA }}
-          # Usa os outputs dos passos anteriores para definir assunto e corpo
-          # Se o script falhou, usa outputs de 'falha_script', senão usa de 'montar_corpo'
-          subject: ${{ steps.falha_script.outputs.email_subject || steps.montar_corpo.outputs.email_subject }}
-          body: ${{ env.email_body }} # Corpo vem do GITHUB_ENV definido no passo anterior
+          subject: "Relatório de HCs impetrados no STJ em ${{ steps.data.outputs.ontem }}"
           to: ${{ secrets.EMAIL_DESTINATARIO }}
-          from: Automação STJ <${{ secrets.EMAIL_USUARIO }}> # Nome amigável
-          # Anexa o arquivo SOMENTE se o nome foi definido E o arquivo existe
-          files: ${{ steps.montar_corpo.outputs.attachment_name }}
-          # Garante que só anexa se o arquivo realmente existir no runner
-          attach_existing_only: true
+          from: ${{ secrets.EMAIL_USUARIO }}
+          body: |
+            Prezado(a),
+
+            Segue em anexo o relatório de Habeas Corpus (HCs) autuados no STJ, com origem no TJGO, na data de ${{ steps.data.outputs.ontem }}.
+
+            Esta automação tem como objetivo auxiliar no acompanhamento processual, mas **não substitui a conferência manual nos canais oficiais do STJ**.
+
+            Atenciosamente,
+            Sistema automatizado - GitHub Actions
+          attachments: hc_tjgo_*.xlsx
+
+      - name: Enviar e-mail de ausência de resultados
+        if: steps.verifica_arquivo.outputs.resultado == 'false'
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          username: ${{ secrets.EMAIL_USUARIO }}
+          password: ${{ secrets.EMAIL_SENHA }}
+          subject: "Nenhum HC impetrado no STJ em ${{ steps.data.outputs.ontem }}"
+          to: ${{ secrets.EMAIL_DESTINATARIO }}
+          from: ${{ secrets.EMAIL_USUARIO }}
+          body: |
+            Prezado(a),
+
+            Nenhum Habeas Corpus com origem no TJGO foi autuado no STJ na data de ${{ steps.data.outputs.ontem }}.
+
+            Esta mensagem foi gerada automaticamente pelo sistema. Para informações oficiais, consulte o site do STJ.
+
+            Atenciosamente,
+            Sistema automatizado - GitHub Actions
