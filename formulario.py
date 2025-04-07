@@ -1,21 +1,20 @@
 # formulario.py
 
-import time # <<< ADICIONAR import time >>>
+import time
 import logging
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import TimeoutException, WebDriverException # <<< ADICIONAR WebDriverException >>>
+from selenium.common.exceptions import TimeoutException, WebDriverException, NoSuchElementException
 from config import URL_PESQUISA, ORGAO_ORIGEM
 
-# <<< ADIÇÃO: Definição da função click_and_wait >>>
-# Function to attempt click and wait with retries
+# Definição da função click_and_wait
 def click_and_wait(driver, wait, button_locator, result_locator, retries=3, delay=5):
     """
     Tenta clicar em um botão e esperar por um resultado, com N tentativas.
     Args:
         driver: Instância do WebDriver.
-        wait: Instância do WebDriverWait (para espera do resultado).
+        wait: Instância do WebDriverWait JÁ CONFIGURADA com o timeout desejado.
         button_locator: Tupla (By, "valor") para localizar o botão.
         result_locator: Tupla (By, "valor") para localizar o elemento de resultado.
         retries: Número máximo de tentativas.
@@ -23,10 +22,11 @@ def click_and_wait(driver, wait, button_locator, result_locator, retries=3, dela
     Returns:
         True se sucesso, False se falhar após todas as tentativas.
     """
+    last_exception = None # Guarda a última exceção para log
     for i in range(retries):
         try:
             logging.info(f"click_and_wait: Tentativa {i+1}/{retries} de encontrar e clicar no botão ({button_locator})...")
-            # Espera o botão ser clicável antes de tentar
+            # Espera o botão ser clicável antes de tentar (wait curto aqui)
             button_element = WebDriverWait(driver, 10).until(
                 EC.element_to_be_clickable(button_locator)
             )
@@ -37,34 +37,32 @@ def click_and_wait(driver, wait, button_locator, result_locator, retries=3, dela
             button_element.click()
             logging.info("click_and_wait: Botão clicado. Aguardando carregamento dos resultados...")
 
-            # Espera principal pelo resultado (usa o 'wait' principal passado para a função)
-            wait.until(EC.presence_of_element_located(result_locator))
+            # Usa o objeto 'wait' passado como argumento diretamente.
+            wait.until(
+                 EC.presence_of_element_located(result_locator)
+            )
+
             logging.info(f"click_and_wait: Elemento de resultado ({result_locator}) encontrado com sucesso.")
             return True # Sucesso!
 
-        except WebDriverException as e: # Captura erros mais específicos do Selenium/WebDriver
-            logging.warning(f"click_and_wait: Erro de WebDriver na tentativa {i+1}: {type(e).__name__} - {e}")
+        except (WebDriverException, TimeoutException) as e: # Captura erros comuns do Selenium
+            logging.warning(f"click_and_wait: Erro Selenium/Timeout na tentativa {i+1}: {type(e).__name__} - {e}")
+            last_exception = e # Guarda a exceção
             if i < retries - 1:
                  logging.info(f"Aguardando {delay}s antes da próxima tentativa...")
                  time.sleep(delay)
             else:
-                 logging.error(f"click_and_wait: Falha após {retries} tentativas devido a erro de WebDriver.")
-        except TimeoutException as e: # Captura Timeouts específicos
-             logging.warning(f"click_and_wait: Timeout na tentativa {i+1} ao esperar pelo resultado: {e}")
-             if i < retries - 1:
-                  logging.info(f"Aguardando {delay}s antes da próxima tentativa...")
-                  time.sleep(delay)
-             else:
-                  logging.error(f"click_and_wait: Falha após {retries} tentativas devido a Timeout.")
+                 logging.error(f"click_and_wait: Falha após {retries} tentativas devido a {type(e).__name__}.")
         except Exception as e: # Captura outros erros inesperados
             logging.warning(f"click_and_wait: Erro inesperado na tentativa {i+1}: {type(e).__name__} - {e}")
+            last_exception = e # Guarda a exceção
             if i < retries - 1:
                 logging.info(f"Aguardando {delay}s antes da próxima tentativa...")
                 time.sleep(delay)
             else:
                 logging.error(f"click_and_wait: Falha após {retries} tentativas devido a erro inesperado.")
 
-    logging.error("click_and_wait: Todas as tentativas falharam.")
+    logging.error(f"click_and_wait: Todas as tentativas falharam. Último erro: {last_exception}")
     return False # Falhou após todas as tentativas
 
 
@@ -111,26 +109,16 @@ def preencher_formulario(driver, wait, data_inicial, data_final):
          logging.error(f"Erro ao preencher campo órgão de origem: {e}")
          raise
 
-    # <<< ALTERAÇÃO: Substituir o bloco de clique e espera pelo botão Pesquisar >>>
-
-    # Defina os localizadores corretos aqui
-    # Localizador do botão "Pesquisar" que você já usava
+    # Definição dos localizadores para botão e resultados esperados
     botao_pesquisar_locator = (By.ID, "idBotaoPesquisarFormularioExtendido")
-    # Localizador do elemento de resultado que você já usava
-    resultado_locator = (By.CSS_SELECTOR, ".clsMensagemLinha, .clsListaProcessoFormatoVerticalLinha")
+    # Espera por MENSAGEM, LISTA ou DETALHES (pelo ID do span da classe)
+    resultado_locator = (By.CSS_SELECTOR, ".clsMensagemLinha, .clsListaProcessoFormatoVerticalLinha, #idSpanClasseDescricao")
 
     logging.info("Tentando clicar em 'Pesquisar' e aguardar resultados com retentativas...")
     # Chama a função de clique com retentativas
-    # Passa o 'wait' principal para que ele use o timeout configurado em main.py
     if not click_and_wait(driver, wait, botao_pesquisar_locator, resultado_locator, retries=3, delay=5):
         # Se a função retornar False (falhou após retentativas), levanta uma exceção
         logging.error("Falha crítica ao clicar em pesquisar e aguardar resultados após múltiplas tentativas.")
-        # Levanta TimeoutException para ser tratado como erro crítico no main.py
         raise TimeoutException("Falha ao clicar em Pesquisar e obter resultados após múltiplas tentativas.")
-
-    # <<< FIM DA ALTERAÇÃO >>>
-
-    # O código não precisa mais da espera explícita aqui, pois click_and_wait já fez isso.
-    # Removido o wait antigo que estava aqui.
 
     logging.info("Preenchimento do formulário e espera pós-pesquisa concluídos.")
