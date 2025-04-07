@@ -73,7 +73,7 @@ def preencher_formulario(driver, wait, data_inicial, data_final):
     logging.info("Acessando URL de pesquisa...")
     driver.get(URL_PESQUISA)
     # Usar um wait mais curto para o primeiro elemento, a página deve carregar rápido
-    WebDriverWait(driver, 15).until(EC.presence_of_element_located((By.ID, "idDataAutuacaoInicial")))
+    WebDriverWait(driver, 45).until(EC.presence_of_element_located((By.ID, "idDataAutuacaoInicial")))
     logging.info("Página carregada. Preenchendo datas...")
 
     # Datas
