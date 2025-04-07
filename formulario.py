@@ -38,12 +38,7 @@ def click_and_wait(driver, wait, button_locator, result_locator, retries=3, dela
             logging.info("click_and_wait: Botão clicado. Aguardando carregamento dos resultados...")
 
             # Espera principal pelo resultado (usa o 'wait' principal passado para a função)
-            WebDriverWait(driver, wait.timeout).until(
-                 # Espera pela presença de QUALQUER elemento que corresponda ao locator
-                 EC.presence_of_element_located(result_locator)
-                 # Ou, se precisar esperar por visibilidade:
-                 # EC.visibility_of_element_located(result_locator)
-            )
+            wait.until(EC.presence_of_element_located(result_locator))
             logging.info(f"click_and_wait: Elemento de resultado ({result_locator}) encontrado com sucesso.")
             return True # Sucesso!
 
