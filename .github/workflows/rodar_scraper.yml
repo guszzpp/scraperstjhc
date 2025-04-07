@@ -27,6 +27,7 @@ jobs:
           else
             echo "::error::Arquivo requirements.txt não encontrado!"
             exit 1
+          fi
 
       - name: 📅 Definir data de ontem
         id: data
