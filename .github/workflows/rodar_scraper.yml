@@ -2,18 +2,12 @@ name: Rodar scraper diariamente STJ (Origem TJGO)
 
 on:
   schedule:
-    # 14:00 UTC = 11:00 Brasília (UTC-3)
     - cron: '0 14 * * *'
-  workflow_dispatch: # Permite rodar manualmente
+  workflow_dispatch:
 
 jobs:
   run-scraper:
     runs-on: ubuntu-latest
-    # Outputs do job (opcional, mas pode ser útil)
-    outputs:
-      # json_output removido
-      email_subject: ${{ steps.montar_corpo.outputs.email_subject || 'Relatório Scraper STJ' }}
-      attachment_name: ${{ steps.montar_corpo.outputs.attachment_name || '' }}
 
     steps:
       - name: ⬇️ Clonar o repositório
@@ -22,7 +16,7 @@ jobs:
       - name: 🐍 Configurar Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.10' # Ou a versão que você usa
+          python-version: '3.10'
           cache: 'pip'
 
       - name: 📦 Instalar dependências Python
@@ -33,11 +27,6 @@ jobs:
           else
             echo "::error::Arquivo requirements.txt não encontrado!"
             exit 1
-          fi
-
-      # REMOVIDO: Passo para instalar jq não é mais necessário
-      # - name: ⚙️ Instalar jq (para processar JSON)
-      #   run: sudo apt-get update && sudo apt-get install -y jq
 
       - name: 📅 Definir data de ontem
         id: data
@@ -50,10 +39,8 @@ jobs:
         id: scraper
         run: |
           echo "Executando script para a data: ${{ steps.data.outputs.ontem }}"
-          # Chama o script Python, que agora gera .txt em vez de .json
           python main.py "${{ steps.data.outputs.ontem }}"
 
-      # PASSO DE FALHA: Permanece o mesmo, pois lida com a falha do script Python em si
       - name: ⚠️ Preparar e-mail de FALHA do Script
         if: failure() && steps.scraper.outcome == 'failure'
         id: falha_script
@@ -79,49 +66,35 @@ jobs:
           echo "email_body<<EOF" >> $GITHUB_ENV
           echo "$BODY" >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
-          echo "attachment_name=" >> $GITHUB_OUTPUT # Garante que não tentará anexar nada
+          echo "attachment_name=" >> $GITHUB_OUTPUT
 
-      # PASSO SUBSTITUÍDO: Agora apenas lê os arquivos de texto gerados pelo Python
       - name: 📄 Preparar Dados do E-mail a Partir de Arquivos
-        # Roda se o passo 'scraper' terminou com sucesso (status 0),
-        # pois main.py deve ter criado os arquivos .txt mesmo que tenha reportado erro interno.
         if: success() || steps.scraper.outcome == 'success'
-        id: montar_corpo # Mantendo ID para compatibilidade com outputs e passo de email
+        id: montar_corpo
         run: |
           echo "Lendo arquivos de texto gerados pelo Python..."
 
-          # Lê o assunto, com um padrão caso o arquivo não exista
           SUBJECT=$(cat email_subject.txt || echo "Relatório Scraper STJ - Arquivo de Assunto Ausente")
-
-          # Lê o corpo, com um padrão caso o arquivo não exista
-          # Importante: O corpo pode ser multi-linhas
           if [ -f email_body.txt ]; then
-            # Lê o corpo diretamente para a variável BODY
             mapfile -t body_lines < email_body.txt
             BODY=$(printf '%s\n' "${body_lines[@]}")
           else
             BODY="Erro crítico: Arquivo email_body.txt não encontrado."
             echo "::error::$BODY"
           fi
-
-          # Lê o nome do anexo, padrão para string vazia se não existir
           ATTACHMENT_NAME=$(cat attachment.txt || echo "")
 
           echo "Assunto lido: $SUBJECT"
           echo "Nome do anexo lido: $ATTACHMENT_NAME"
-          # Evitar logar o corpo inteiro se for muito grande
           echo "Corpo do e-mail lido (primeira linha): $(echo "$BODY" | head -n 1)"
 
-          # Exporta as variáveis
           echo "Exportando variáveis para o passo de e-mail..."
           echo "email_subject=$SUBJECT" >> $GITHUB_OUTPUT
           echo "attachment_name=$ATTACHMENT_NAME" >> $GITHUB_OUTPUT
-          # Exporta o corpo multi-linhas para GITHUB_ENV
           echo "email_body<<EOF" >> $GITHUB_ENV
           echo "$BODY" >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
 
-      # PASSO DE ENVIO DE E-MAIL: Ajustado para usar os outputs corretos
       - name: 📤 Enviar E-mail
         if: always() && (steps.falha_script.outcome == 'success' || steps.montar_corpo.outcome == 'success')
         uses: dawidd6/action-send-mail@v3
@@ -134,15 +107,10 @@ jobs:
           body: ${{ env.email_body }}
           to: ${{ secrets.EMAIL_DESTINATARIO }}
           from: Automação STJ <${{ secrets.EMAIL_USUARIO }}>
-
-          # **** MODIFICAÇÃO AQUI ****
-          # Usar caminho absoluto com GITHUB_WORKSPACE
-          # Verifica se attachment_name não está vazio antes de construir o caminho
           attachments: ${{ steps.montar_corpo.outputs.attachment_name && format('{0}/{1}', github.workspace, steps.montar_corpo.outputs.attachment_name) || '' }}
 
-      # NOVO PASSO OPCIONAL: Fazer upload dos arquivos gerados como artefatos para debug
       - name: 💾 Upload Arquivos Gerados (Debug)
-        if: always() # Sempre tenta fazer upload
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: arquivos-gerados-pelo-script
@@ -151,4 +119,4 @@ jobs:
             email_body.txt
             attachment.txt
             hc_tjgo_*.xlsx
-          if-no-files-found: ignore # Não falha se algum arquivo não existir
+          if-no-files-found: ignore
