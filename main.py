@@ -265,7 +265,6 @@ def gerar_componentes_email(stats):
             Resumo da execução:
             - Resultados encontrados pelo site: {qtd_site}
             - HCs efetivamente extraídos: {qtd_hcs} (detalhes no anexo)
-            - Páginas processadas: {pags_ok} de {pags_total}
             - Script finalizado em: {horario} (Duração: {duracao}s)
 
             O arquivo '{arquivo_gerado}' está anexado a este e-mail.
@@ -290,7 +289,6 @@ def gerar_componentes_email(stats):
             Resumo da execução:
             - Resultados encontrados pelo site: {qtd_site}
             - HCs efetivamente extraídos: {qtd_hcs}
-            - Páginas processadas: {pags_ok} de {pags_total}
             - Script finalizado em: {horario} (Duração: {duracao}s)
 
             Nenhum arquivo foi gerado ou anexado.
