@@ -1,10 +1,10 @@
-# Scraper de HCs no STJ (Origem TJGO) ⚖️➡️📊
+# Scraper de HCs no STJ (Origem TJGO) 
 
 Este projeto automatiza a busca por **Habeas Corpus (HCs)** no site do Superior Tribunal de Justiça (STJ), especificamente aqueles com **origem no Tribunal de Justiça de Goiás (TJGO)**. Os resultados encontrados são extraídos, processados e exportados para uma planilha Excel (`.xlsx`). A execução pode ser manual ou agendada automaticamente via GitHub Actions, com envio de um relatório por e-mail.
 
 ---
 
-## ✨ Como Funciona
+##  Como Funciona
 
 1.  **Acesso e Pesquisa:** O script utiliza Selenium para controlar um navegador Chrome (em modo headless no GitHub Actions) e acessar a página de pesquisa avançada do STJ.
 2.  **Preenchimento:** As datas desejadas (ou a data de ontem, por padrão) e o órgão de origem (TJGO) são inseridos no formulário.
@@ -15,9 +15,12 @@ Este projeto automatiza a busca por **Habeas Corpus (HCs)** no site do Superior 
 
 ---
 
-## ⚙️ Requisitos
+##  Requisitos
 
 **Para execução local:**
+
+*   Certifique-se de que o `chromedriver` compatível com sua versão do Google Chrome está instalado e disponível no `PATH` do sistema. Isso é necessário para o Selenium funcionar corretamente no ambiente local.
+
 
 *   Python 3.10+
 *   Git
@@ -32,7 +35,7 @@ Este projeto automatiza a busca por **Habeas Corpus (HCs)** no site do Superior 
 
 ---
 
-## 🔧 Instalação (Local)
+##  Instalação (Local)
 
 1.  Clone o repositório:
     ```bash
@@ -56,17 +59,17 @@ Este projeto automatiza a busca por **Habeas Corpus (HCs)** no site do Superior 
 
 ---
 
-## 🛠️ Configuração (GitHub Actions)
+##  Configuração (GitHub Actions)
 
 Para que o envio automático de e-mails via GitHub Actions funcione, você precisa configurar os seguintes **Secrets** no seu repositório (Vá para `Settings` > `Secrets and variables` > `Actions` > `New repository secret`):
 
 *   `EMAIL_USUARIO`: O endereço de e-mail que será usado para enviar o relatório (ex: `seu_email@gmail.com`).
-*   `EMAIL_SENHA`: A senha de aplicativo específica para o e-mail configurado (❗️**Importante:** Para Gmail, você provavelmente precisará gerar uma "Senha de App" - não use sua senha principal do Google. Veja a [documentação do Google sobre Senhas de App](https://support.google.com/accounts/answer/185833)).
+*   `EMAIL_SENHA`: A senha de aplicativo específica para o e-mail configurado (**Importante:** Para Gmail, você provavelmente precisará gerar uma "Senha de App" - não use sua senha principal do Google. Veja a [documentação do Google sobre Senhas de App](https://support.google.com/accounts/answer/185833)).
 *   `EMAIL_DESTINATARIO`: O endereço de e-mail que receberá o relatório.
 
 ---
 
-## ▶️ Execução
+##  Execução
 
 **Execução Manual (Local):**
 
@@ -96,7 +99,7 @@ Execute o script principal a partir da pasta raiz do projeto.
 
 ---
 
-## 📊 Saída
+##  Saída
 
 **Arquivo Excel (.xlsx):**
 
@@ -122,20 +125,44 @@ Um e-mail será enviado ao `EMAIL_DESTINATARIO` após cada execução agendada o
 
 ---
 
-## 📁 Estrutura do Projeto
+##  Estrutura do Projeto
 .
-├── .github/
-│ └── workflows/
-│ └── rodar_scraper.yml # Define o workflow do GitHub Actions
-├── config.py # Configurações (URL, Órgão, Datas padrão)
-├── exportador.py # Lógica para criar o arquivo .xlsx
-├── extrator.py # Lógica para extrair dados da página de detalhes do HC
-├── formulario.py # Lógica para preencher o formulário de pesquisa
-├── main.py # Ponto de entrada, orquestra o fluxo principal
-├── navegador.py # Configuração e inicialização do Selenium WebDriver
-├── paginador.py # Lógica para navegar entre páginas de resultados
-├── requirements.txt # Lista de dependências Python
-└── README.md # Este arquivo
+ .github/
+  workflows/
+  rodar_scraper.yml # Define o workflow do GitHub Actions
+ config.py # Configurações (URL, Órgão, Datas padrão)
+ exportador.py # Lógica para criar o arquivo .xlsx
+ extrator.py # Lógica para extrair dados da página de detalhes do HC
+ formulario.py # Lógica para preencher o formulário de pesquisa
+ main.py # Ponto de entrada, orquestra o fluxo principal
+ navegador.py # Configuração e inicialização do Selenium WebDriver
+ paginador.py # Lógica para navegar entre páginas de resultados
+ requirements.txt # Lista de dependências Python
+ README.md # Este arquivo
 
 
 *(Nota: O arquivo `info_execucao.json` é gerado durante a execução do `main.py` e usado pelo workflow, mas geralmente não é versionado).*
+
+---
+
+##  Melhorias Futuras
+
+###  Verificação de Processos Inseridos Retroativamente
+
+Pretende-se implementar uma funcionalidade que detecte **inserções retroativas de processos** pelo STJ — isto é, situações em que um HC com data anterior à busca automatizada do dia anterior aparece somente posteriormente nos resultados da pesquisa.
+
+A solução proposta envolverá a **armazenagem de estado dos resultados anteriores em um repositório Git separado (ou em uma branch auxiliar)**, onde cada execução do scraper salvará os resultados do dia (em `.csv` ou `.txt`). Na execução seguinte, o script fará o seguinte fluxo:
+
+1. Buscar os dados do dia atual.
+2. Recuperar os dados da execução anterior a partir do repositório/branch auxiliar.
+3. Comparar os dois conjuntos de dados.
+4. Se houver diferença (ex: HC novo com data de ontem ou anteontem), um **e-mail adicional de alerta será disparado** ao usuário.
+5. O repositório auxiliar será então atualizado com os dados mais recentes.
+
+###  Justificativa Técnica
+
+A opção por usar um repositório/branch auxiliar para armazenar o estado diário dos resultados (em .csv ou .txt) decorre de experiências negativas anteriores com a tentativa de processar arquivos .json diretamente no rodar_scraper.yml.
+
+Mais especificamente, a extração de dados do JSON exigia um script Bash embutido no YAML, com múltiplas etapas frágeis: validação com jq, condicionais aninhadas (if/elif), construção de mensagens multi-linha com <<EOF, exportação de variáveis com GITHUB_OUTPUT, entre outras. Essa abordagem mostrou-se altamente suscetível a erros de sintaxe e problemas de codificação, especialmente quando o YAML era salvo com finais de linha CRLF (Windows), quebrando a interpretação do Bash no runner Linux (espera LF).
+
+Com isso, a lógica foi movida para o Python, que gera arquivos .txt simples com o corpo do e-mail, assunto e outros dados pré-processados. O YAML apenas os lê com cat, eliminando toda a complexidade e fragilidade. A futura funcionalidade de verificação retroativa seguirá esse mesmo princípio: toda a lógica de comparação será feita em Python, e o YAML continuará simples e resiliente.
