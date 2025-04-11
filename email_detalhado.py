@@ -1,16 +1,9 @@
 import smtplib
+import os
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 import pandas as pd
 from datetime import datetime
-
-# 🔐 CONFIGURAÇÕES SMTP (ajuste conforme seu ambiente)
-REMETENTE = "seu-email@dominio"
-DESTINATARIOS = ["destinatario1@dominio", "destinatario2@dominio"]
-SERVIDOR_SMTP = "smtp.dominio.com"
-PORTA_SMTP = 587
-USUARIO_SMTP = "usuario@dominio"
-SENHA_SMTP = "SENHA_AQUI"
 
 def enviar_email_alerta_novos_retroativos(retroativos: pd.DataFrame):
     """
@@ -18,12 +11,21 @@ def enviar_email_alerta_novos_retroativos(retroativos: pd.DataFrame):
     anterior à última execução.
     """
     if retroativos.empty:
-        return  # segurança redundante
+        return
 
-    hoje = datetime.now().strftime("%d/%m/%Y")
-    assunto = f"[ALERTA] Novos HCs retroativos detectados – {hoje}"
+    # Variáveis de ambiente (injetadas via GitHub Secrets)
+    remetente = os.getenv("EMAIL_USUARIO")
+    destinatarios_raw = os.getenv("EMAIL_DESTINATARIO", "")
+    senha = os.getenv("EMAIL_SENHA")
 
-    # Corpo HTML do e-mail
+    if not remetente or not senha or not destinatarios_raw:
+        print("❌ Variáveis de ambiente não definidas corretamente.")
+        return
+
+    destinatarios = [email.strip() for email in destinatarios_raw.split(",") if email.strip()]
+
+    assunto = f"[ALERTA] Novos HCs retroativos detectados – {datetime.now().strftime('%d/%m/%Y')}"
+
     corpo = "<p>Foram detectados novos Habeas Corpus com datas de julgamento anteriores à última execução automatizada:</p>"
     corpo += "<table border='1' cellpadding='5' cellspacing='0'>"
     corpo += "<tr><th>Número do Processo</th><th>Data de Julgamento</th><th>Órgão Julgador</th><th>Relator</th></tr>"
@@ -37,22 +39,21 @@ def enviar_email_alerta_novos_retroativos(retroativos: pd.DataFrame):
             f"<td>{row.get('relator', '')}</td>"
             f"</tr>"
         )
-
     corpo += "</table><p>Recomenda-se verificação manual para confirmação.</p>"
 
-    # Montar e-mail
+    # Montar o e-mail
     msg = MIMEMultipart()
-    msg["From"] = REMETENTE
-    msg["To"] = ", ".join(DESTINATARIOS)
+    msg["From"] = remetente
+    msg["To"] = ", ".join(destinatarios)
     msg["Subject"] = assunto
     msg.attach(MIMEText(corpo, "html"))
 
-    # Enviar via SMTP
+    # Enviar
     try:
-        with smtplib.SMTP(SERVIDOR_SMTP, PORTA_SMTP) as server:
+        with smtplib.SMTP("smtp.gmail.com", 587) as server:
             server.starttls()
-            server.login(USUARIO_SMTP, SENHA_SMTP)
-            server.sendmail(REMETENTE, DESTINATARIOS, msg.as_string())
+            server.login(remetente, senha)
+            server.sendmail(remetente, destinatarios, msg.as_string())
             print("✅ Alerta de retroativos enviado com sucesso.")
     except Exception as e:
         print(f"❌ Erro ao enviar e-mail de retroativos: {e}")
