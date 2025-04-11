@@ -42,6 +42,12 @@ jobs:
           echo "Executando script para a data: ${{ steps.data.outputs.ontem }}"
           python main.py "${{ steps.data.outputs.ontem }}"
 
+      - name: 🔍 Verificar inserções retroativas de HCs
+        if: success() && steps.scraper.outcome == 'success'
+        run: |
+          echo "Iniciando verificação de HCs retroativos..."
+          python retroativos/integrador.py
+          
       - name: ⚠️ Preparar e-mail de FALHA do Script
         if: failure() && steps.scraper.outcome == 'failure'
         id: falha_script
