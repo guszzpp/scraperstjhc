@@ -112,7 +112,7 @@ jobs:
           password: ${{ secrets.EMAIL_SENHA }}
           subject: ${{ steps.falha_script.outputs.email_subject || steps.montar_corpo.outputs.email_subject }}
           body: ${{ env.email_body }}
-          to: ${{ secrets.EMAIL_DESTINATARIO }}
+          to: ${{ secrets.EMAIL_DESTINATARIO_TESTE }}
           from: Automação STJ <${{ secrets.EMAIL_USUARIO }}>
           attachments: ${{ steps.montar_corpo.outputs.attachment_name && format('{0}/{1}', github.workspace, steps.montar_corpo.outputs.attachment_name) || '' }}
 
