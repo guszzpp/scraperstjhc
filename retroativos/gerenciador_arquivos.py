@@ -2,6 +2,7 @@ from pathlib import Path
 import pandas as pd
 from datetime import date
 from typing import List
+from datetime import datetime, timedelta
 
 PASTA_RESULTADOS = Path("dados_diarios")
 
@@ -26,3 +27,13 @@ def obter_caminho_resultado_hoje() -> Path:
     Retorna o caminho esperado para o arquivo de hoje.
     """
     return PASTA_RESULTADOS / f"resultados_{date.today().isoformat()}.csv"
+
+def obter_data_alvo_para_rechecagem():
+    """
+    Retorna a string de data de anteontem (dd/mm/aaaa) para rechecagem retroativa.
+    """
+    try:
+        anteontem = datetime.now() - timedelta(days=2)
+        return anteontem.strftime("%d/%m/%Y")
+    except Exception:
+        return None
