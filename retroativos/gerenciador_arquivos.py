@@ -1,8 +1,7 @@
 from pathlib import Path
 import pandas as pd
-from datetime import date
+from datetime import date, datetime, timedelta
 from typing import List
-from datetime import datetime, timedelta
 
 PASTA_RESULTADOS = Path("dados_diarios")
 
@@ -37,3 +36,16 @@ def obter_data_alvo_para_rechecagem():
         return anteontem.strftime("%d/%m/%Y")
     except Exception:
         return None
+
+def obter_nome_arquivo_rechecagem():
+    """
+    Gera o nome do arquivo de rechecagem retroativa no padrão padronizado com prefixo e data.
+    """
+    return f"hc_tjgo_{date.today().strftime('%d-%m-%Y')}_rechecado.xlsx"
+
+def obter_caminho_arquivo_rechecagem() -> Path:
+    """
+    Retorna o caminho completo onde o arquivo de rechecagem deve ser salvo.
+    """
+    PASTA_RESULTADOS.mkdir(exist_ok=True)
+    return PASTA_RESULTADOS / obter_nome_arquivo_rechecagem()
