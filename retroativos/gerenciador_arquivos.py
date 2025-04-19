@@ -1,51 +1,41 @@
-from pathlib import Path
+# retroativos/gerenciador_arquivos.py
+
 import pandas as pd
-from datetime import date, datetime, timedelta
-from typing import List
+from pathlib import Path
+from datetime import datetime
 
 PASTA_RESULTADOS = Path("dados_diarios")
 
-def listar_arquivos_resultados() -> List[Path]:
+def salvar_csv_resultado(df: pd.DataFrame, data_str: str) -> Path:
     """
-    Retorna todos os arquivos de resultados disponíveis, ordenados por data.
+    Salva o DataFrame na pasta de resultados usando a data_str (formato DD/MM/YYYY)
+    para nomear o arquivo CSV como resultados_YYYY-MM-DD.csv.
     """
-    return sorted(PASTA_RESULTADOS.glob("resultados_*.csv"))
-
-def salvar_csv_resultado(df: pd.DataFrame) -> Path:
-    """
-    Salva o DataFrame de resultados do dia em um novo arquivo nomeado por data.
-    """
+    data_obj = datetime.strptime(data_str, "%d/%m/%Y").date()
     PASTA_RESULTADOS.mkdir(exist_ok=True)
-    nome_arquivo = f"resultados_{date.today().isoformat()}.csv"
+    nome_arquivo = f"resultados_{data_obj.isoformat()}.csv"
     caminho = PASTA_RESULTADOS / nome_arquivo
     df.to_csv(caminho, index=False)
     return caminho
 
-def obter_caminho_resultado_hoje() -> Path:
+def obter_caminho_resultado_por_data(data_obj) -> Path:
     """
-    Retorna o caminho esperado para o arquivo de hoje.
+    Retorna o Path do arquivo CSV de resultados para a data fornecida.
+    data_obj pode ser objeto date ou string ISO 'YYYY-MM-DD'.
     """
-    return PASTA_RESULTADOS / f"resultados_{date.today().isoformat()}.csv"
+    if not PASTA_RESULTADOS.exists():
+        PASTA_RESULTADOS.mkdir(exist_ok=True)
+    if isinstance(data_obj, str):
+        data_iso = data_obj
+    else:
+        data_iso = data_obj.isoformat()
+    return PASTA_RESULTADOS / f"resultados_{data_iso}.csv"
 
-def obter_data_alvo_para_rechecagem():
+def obter_nome_arquivo_rechecagem() -> str:
     """
-    Retorna a string de data de anteontem (dd/mm/aaaa) para rechecagem retroativa.
+    Retorna o nome do arquivo Excel gerado na rechecagem retroativa,
+    no formato hc_tjgo_DD-MM-YYYY_rechecado.xlsx.
     """
-    try:
-        anteontem = datetime.now() - timedelta(days=2)
-        return anteontem.strftime("%d/%m/%Y")
-    except Exception:
-        return None
-
-def obter_nome_arquivo_rechecagem():
-    """
-    Gera o nome do arquivo de rechecagem retroativa no padrão padronizado com prefixo e data.
-    """
-    return f"hc_tjgo_{date.today().strftime('%d-%m-%Y')}_rechecado.xlsx"
-
-def obter_caminho_arquivo_rechecagem() -> Path:
-    """
-    Retorna o caminho completo onde o arquivo de rechecagem deve ser salvo.
-    """
-    PASTA_RESULTADOS.mkdir(exist_ok=True)
-    return PASTA_RESULTADOS / obter_nome_arquivo_rechecagem()
+    from datetime import date
+    hoje = date.today().strftime("%d-%m-%Y")
+    return f"hc_tjgo_{hoje}_rechecado.xlsx"
