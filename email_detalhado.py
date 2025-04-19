@@ -3,8 +3,9 @@ import os
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 import pandas as pd
-from datetime import date, timedelta
+from datetime import date, timedelta, datetime
 from pathlib import Path
+
 
 def enviar_email_alerta_novos_retroativos(retroativos: pd.DataFrame):
     """
