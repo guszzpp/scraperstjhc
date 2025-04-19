@@ -1,4 +1,4 @@
-name: Rodar scraper diariamente STJ (Origem TJGO)
+name: Rodar scraper diariamente STJ (Origem TJGO)
 
 on:
   schedule:
@@ -9,19 +9,40 @@ jobs:
   run-scraper:
     runs-on: ubuntu-latest
     steps:
+      # 1. Clonar o repositório
       - uses: actions/checkout@v4
 
+      # 2. Configurar Python
+      - name: 🐍 Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      # 3. Instalar dependências
+      - name: 📦 Instalar dependências Python
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then
+            pip install -r requirements.txt
+          else
+            echo "::error::Arquivo requirements.txt não encontrado!"
+            exit 1
+          fi
+
+      # 4. Definir data de ontem
       - name: Definir data de ontem
         id: data
         run: |
           ONTEM_DATA=$(date -d 'yesterday' +'%d/%m/%Y')
           echo "ontem=$ONTEM_DATA" >> $GITHUB_OUTPUT
 
+      # 5. Rodar todo o fluxo no main.py (scraper → CSV → comparação → geração de e‑mail)
       - name: 🚀 Rodar scraper e preparar e‑mail
         run: |
           echo "Executando main.py para: ${{ steps.data.outputs.ontem }}"
           python main.py "${{ steps.data.outputs.ontem }}"
 
+      # 6. Montar variáveis de e‑mail a partir dos arquivos gerados pelo Python
       - name: 📄 Preparar Dados do E‑mail a Partir de Arquivos
         id: montar_corpo
         run: |
@@ -34,6 +55,7 @@ jobs:
           echo "EOF" >> $GITHUB_ENV
           echo "attachment_name=$ATTACHMENT" >> $GITHUB_OUTPUT
 
+      # 7. Enviar o e‑mail
       - name: 📤 Enviar E‑mail
         uses: dawidd6/action-send-mail@v3
         with:
@@ -44,5 +66,17 @@ jobs:
           subject: ${{ steps.montar_corpo.outputs.email_subject }}
           body: ${{ env.email_body }}
           to: ${{ secrets.EMAIL_DESTINATARIO_TESTE }}
-          from: Automação STJ <${{ secrets.EMAIL_USUARIO }}>
+          from: Automação STJ <${{ secrets.EMAIL_USUARIO }}>
           attachments: ${{ steps.montar_corpo.outputs.attachment_name && format('{0}/{1}', github.workspace, steps.montar_corpo.outputs.attachment_name) || '' }}
+
+      # 8. (Opcional) Upload de artefatos para debug
+      - name: 💾 Upload Arquivos Gerados (pelo Python)
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: arquivos-gerados-pelo-script
+          path: |
+            email_subject.txt
+            email_body.txt
+            attachment.txt
+            hc_tjgo_*.xlsx
