@@ -1,5 +1,3 @@
-# main.py
-
 import sys
 import logging
 import math
@@ -26,11 +24,24 @@ from exportador import exportar_resultados
 from paginador import navegar_paginas_e_extrair
 from formulario import preencher_formulario
 
-
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(levelname)s - %(message)s",
 )
+
+
+def salvar_arquivos_email(seguro=True, assunto=None, corpo=None, anexo=None):
+    """Garante a criação dos arquivos esperados pelo GitHub Actions para envio de e-mail."""
+    assunto = assunto or "🛑 Falha na execução do scraper"
+    corpo = corpo or (
+        "O scraper foi executado, mas ocorreu uma falha antes da conclusão.\n\n"
+        "Verifique os logs de execução e o repositório para mais informações."
+    )
+    anexo = anexo or ""
+
+    Path("email_subject.txt").write_text(assunto, encoding="utf-8")
+    Path("email_body.txt").write_text(corpo, encoding="utf-8")
+    Path("attachment.txt").write_text(anexo, encoding="utf-8")
 
 
 def main(ontem_str: str = None):
@@ -74,6 +85,7 @@ def main(ontem_str: str = None):
 
     except Exception as e:
         logging.error("Erro durante execução: %s", e, exc_info=True)
+        salvar_arquivos_email()  # evita falha no GitHub Actions
 
     finally:
         driver.quit()
