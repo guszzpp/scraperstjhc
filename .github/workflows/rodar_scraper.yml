@@ -29,44 +29,44 @@ jobs:
             exit 1
           fi
 
-      # 4. Definir as datas (ontem em DD/MM/YYYY e ISO, e anteontem ISO)
+      # 4. Definir as datas
       - name: 📅 Definir datas
         id: datas
         run: |
           ONTEM=$(date -d 'yesterday' +'%d/%m/%Y')
           ONTEM_ISO=$(date -d 'yesterday' +'%Y-%m-%d')
           ANTEONTEM_ISO=$(date -d '2 days ago' +'%Y-%m-%d')
-          echo "ontem=$ONTEM" >> $GITHUB_OUTPUT
-          echo "ontem_iso=$ONTEM_ISO" >> $GITHUB_OUTPUT
+          echo "ontem=$ONTEM"              >> $GITHUB_OUTPUT
+          echo "ontem_iso=$ONTEM_ISO"      >> $GITHUB_OUTPUT
           echo "anteontem_iso=$ANTEONTEM_ISO" >> $GITHUB_OUTPUT
 
-      # 5. Criar pasta de históricos (caso não exista)
+      # 5. Preparar pasta de históricos
       - name: 📁 Preparar pasta dados_diarios
         run: mkdir -p dados_diarios
 
-      # 6. Baixar o CSV de anteontem para comparação
+      # 6. Baixar o CSV de anteontem
       - name: 📥 Download CSV de anteontem
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v2
         with:
           name: csv-${{ steps.datas.outputs.anteontem_iso }}
           path: dados_diarios
           if-no-files-found: warn
 
-      # 7. Executar todo o fluxo no main.py (scraping → CSV → comparação → geração de e‑mail)
+      # 7. Rodar todo o fluxo no main.py
       - name: 🚀 Rodar scraper e preparar e‑mail
         run: |
           echo "Executando main.py para: ${{ steps.datas.outputs.ontem }}"
           python main.py "${{ steps.datas.outputs.ontem }}"
 
-      # 8. Fazer upload do CSV gerado (para ser usado na próxima execução)
+      # 8. Upload do CSV gerado (para uso no próximo run)
       - name: 💾 Upload CSV de ontem
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v2
         with:
           name: csv-${{ steps.datas.outputs.ontem_iso }}
           path: dados_diarios/resultados_${{ steps.datas.outputs.ontem_iso }}.csv
           if-no-files-found: warn
 
-      # 9. Montar as variáveis de e‑mail a partir dos arquivos criados pelo Python
+      # 9. Montar variáveis de e‑mail a partir dos arquivos do Python
       - name: 📄 Preparar Dados do E‑mail a Partir de Arquivos
         id: montar_corpo
         run: |
@@ -74,9 +74,9 @@ jobs:
           BODY=$(cat email_body.txt)
           ATTACHMENT=$(cat attachment.txt || echo "")
           echo "email_subject=$SUBJECT" >> $GITHUB_OUTPUT
-          echo "email_body<<EOF" >> $GITHUB_ENV
-          echo "$BODY" >> $GITHUB_ENV
-          echo "EOF" >> $GITHUB_ENV
+          echo "email_body<<EOF"      >> $GITHUB_ENV
+          echo "$BODY"                >> $GITHUB_ENV
+          echo "EOF"                  >> $GITHUB_ENV
           echo "attachment_name=$ATTACHMENT" >> $GITHUB_OUTPUT
 
       # 10. Enviar o e‑mail
@@ -93,10 +93,10 @@ jobs:
           from: Automação STJ <${{ secrets.EMAIL_USUARIO }}>
           attachments: ${{ steps.montar_corpo.outputs.attachment_name && format('{0}/{1}', github.workspace, steps.montar_corpo.outputs.attachment_name) || '' }}
 
-      # 11. (Opcional) Upload dos artefatos para debug
+      # 11. (Opcional) Upload dos artefatos de debug
       - name: 💾 Upload Arquivos Gerados (pelo Python)
         if: always()
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v2
         with:
           name: arquivos-gerados-pelo-script
           path: |
