@@ -8,88 +8,41 @@ on:
 jobs:
   run-scraper:
     runs-on: ubuntu-latest
-
     steps:
-      - name: ⬇️ Clonar o repositório
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: 🐍 Configurar Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.10'
-          cache: 'pip'
-
-      - name: 📦 Instalar dependências Python
-        run: |
-          python -m pip install --upgrade pip
-          if [ -f requirements.txt ]; then
-            pip install -r requirements.txt
-          else
-            echo "::error::Arquivo requirements.txt não encontrado!"
-            exit 1
-          fi
-
-      - name: 📅 Definir data de ontem
+      - name: Definir data de ontem
         id: data
         run: |
-          ONTE_DATA=$(date -d 'yesterday' +'%d/%m/%Y')
-          echo "Data de ontem definida como: $ONTE_DATA"
-          echo "ontem=$ONTE_DATA" >> $GITHUB_OUTPUT
+          ONTEM_DATA=$(date -d 'yesterday' +'%d/%m/%Y')
+          echo "ontem=$ONTEM_DATA" >> $GITHUB_OUTPUT
 
       - name: 🚀 Rodar scraper e preparar e‑mail
         run: |
+          echo "Executando main.py para: ${{ steps.data.outputs.ontem }}"
           python main.py "${{ steps.data.outputs.ontem }}"
 
-
-      - name: 📄 Preparar Dados do E-mail a Partir de Arquivos
-        if: success() || steps.scraper.outcome == 'success'
+      - name: 📄 Preparar Dados do E‑mail a Partir de Arquivos
         id: montar_corpo
         run: |
-          echo "Lendo arquivos de texto gerados pelo Python..."
-
-          SUBJECT=$(cat email_subject.txt || echo "Relatório Scraper STJ - Arquivo de Assunto Ausente")
-          if [ -f email_body.txt ]; then
-            mapfile -t body_lines < email_body.txt
-            BODY=$(printf '%s\n' "${body_lines[@]}")
-          else
-            BODY="Erro crítico: Arquivo email_body.txt não encontrado."
-            echo "::error::$BODY"
-          fi
-          ATTACHMENT_NAME=$(cat attachment.txt || echo "")
-
-          echo "Assunto lido: $SUBJECT"
-          echo "Nome do anexo lido: $ATTACHMENT_NAME"
-          echo "Corpo do e-mail lido (primeira linha): $(echo "$BODY" | head -n 1)"
-
-          echo "Exportando variáveis para o passo de e-mail..."
+          SUBJECT=$(cat email_subject.txt)
+          BODY=$(cat email_body.txt)
+          ATTACHMENT=$(cat attachment.txt || echo "")
           echo "email_subject=$SUBJECT" >> $GITHUB_OUTPUT
-          echo "attachment_name=$ATTACHMENT_NAME" >> $GITHUB_OUTPUT
           echo "email_body<<EOF" >> $GITHUB_ENV
           echo "$BODY" >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
+          echo "attachment_name=$ATTACHMENT" >> $GITHUB_OUTPUT
 
-      - name: 📤 Enviar E-mail
-        if: always() && (steps.falha_script.outcome == 'success' || steps.montar_corpo.outcome == 'success')
+      - name: 📤 Enviar E‑mail
         uses: dawidd6/action-send-mail@v3
         with:
           server_address: smtp.gmail.com
           server_port: 465
           username: ${{ secrets.EMAIL_USUARIO }}
           password: ${{ secrets.EMAIL_SENHA }}
-          subject: ${{ steps.falha_script.outputs.email_subject || steps.montar_corpo.outputs.email_subject }}
+          subject: ${{ steps.montar_corpo.outputs.email_subject }}
           body: ${{ env.email_body }}
           to: ${{ secrets.EMAIL_DESTINATARIO_TESTE }}
           from: Automação STJ <${{ secrets.EMAIL_USUARIO }}>
           attachments: ${{ steps.montar_corpo.outputs.attachment_name && format('{0}/{1}', github.workspace, steps.montar_corpo.outputs.attachment_name) || '' }}
-
-      - name: 💾 Upload Arquivos Gerados (Debug)
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: arquivos-gerados-pelo-script
-          path: |
-            email_subject.txt
-            email_body.txt
-            attachment.txt
-            hc_tjgo_*.xlsx
-          if-no-files-found: ignore
