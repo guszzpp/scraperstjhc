@@ -8,7 +8,14 @@ import pandas as pd
 from datetime import datetime
 from pathlib import Path
 
-from config import ONTEM as CONFIG_ONTEM, ORGAO_ORIGEM, URL_PESQUISA, TEMPO_PAUSA_CURTO_ENTRE_PAGINAS
+from selenium.webdriver.support.ui import WebDriverWait
+
+from config import (
+    ONTEM as CONFIG_ONTEM,
+    ORGAO_ORIGEM,
+    URL_PESQUISA,
+    TEMPO_PAUSA_CURTO_ENTRE_PAGINAS,
+)
 from retroativos.gerenciador_arquivos import salvar_csv_resultado
 from retroativos.integrador import obter_retroativos
 from email_detalhado import preparar_email_alerta_retroativos
@@ -27,21 +34,15 @@ logging.basicConfig(
 
 
 def main(ontem_str: str = None):
-    """
-    1) Recebe ontem_str no formato DD/MM/AAAA (workflow passa como argumento).
-    2) Se não for fornecido, usa CONFIG_ONTEM de config.py.
-    3) Gera CSV, Excel, faz comparação anteontem↔ontem e prepara e‑mail.
-    """
-    # Define a data que será usada
     data_ontem = ontem_str or CONFIG_ONTEM
     logging.info("Data de referência para o scraper: %s", data_ontem)
 
     logging.info("Iniciando scraper de HCs STJ (Origem %s)", ORGAO_ORIGEM)
     driver = iniciar_navegador()
-
     try:
         # 1. Preencher formulário de pesquisa
-        preencher_formulario(driver)
+        wait = WebDriverWait(driver, TEMPO_PAUSA_CURTO_ENTRE_PAGINAS)
+        preencher_formulario(driver, wait, data_ontem, data_ontem)
         logging.info("Formulário preenchido")
 
         # 2. Navegar páginas e extrair resultados
