@@ -24,6 +24,7 @@ from exportador import exportar_resultados
 from paginador import navegar_paginas_e_extrair
 from formulario import preencher_formulario
 
+# Configuração global de logging
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(levelname)s - %(message)s",
@@ -88,6 +89,13 @@ def main(ontem_str: str = None):
         salvar_arquivos_email()  # evita falha no GitHub Actions
 
     finally:
+        # Força modificação da pasta dados_diarios para garantir cache no GitHub Actions
+        try:
+            Path("dados_diarios/.timestamp").write_text(f"{datetime.now()}", encoding="utf-8")
+            logging.info("Arquivo .timestamp criado para forçar salvamento do cache.")
+        except Exception as e:
+            logging.warning("Não foi possível criar .timestamp: %s", e)
+
         driver.quit()
         logging.info("Navegador encerrado")
 
