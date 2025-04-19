@@ -1,55 +1,64 @@
-from datetime import date
-from pathlib import Path
+# integrador.py
+
+import logging
+from datetime import date, timedelta
 import pandas as pd
+from pathlib import Path
 
-from retroativos.gerenciador_arquivos import (
-    obter_caminho_resultado_hoje,
-    listar_arquivos_resultados,
-    obter_caminho_arquivo_rechecagem,
-    obter_data_alvo_para_rechecagem,
-)
-from retroativos.verificador import comparar
-from email_detalhado import enviar_email_alerta_novos_retroativos
+from retroativos.gerenciador_arquivos import obter_caminho_resultado_por_data
 
-
-def verificar_e_enviar_alerta():
+def obter_retroativos() -> pd.DataFrame:
     """
-    Executa a lógica de verificação de processos retroativos e envia alerta por e-mail,
-    independentemente de haver novos resultados. Sempre salva a planilha de rechecagem.
+    Compara o CSV de resultados de hoje com o de anteontem e retorna um DataFrame
+    contendo apenas os HCs que aparecem em hoje mas não em anteontem.
+
+    - Se faltar qualquer um dos arquivos, faz log de warning e retorna DataFrame vazio.
+    - Se a coluna 'numero_processo' estiver ausente, faz log de error e retorna vazio.
     """
-    arquivos = listar_arquivos_resultados()
+    hoje = date.today()
+    anteontem = hoje - timedelta(days=2)
 
-    if len(arquivos) < 2:
-        print("*⚠️ Arquivos insuficientes para comparação retroativa*. ")
-        print("ℹ️ Nenhuma diferença retroativa identificada.")
-        enviar_email_alerta_novos_retroativos(pd.DataFrame())
-        return
+    caminho_hoje = obter_caminho_resultado_por_data(hoje)
+    caminho_anteontem = obter_caminho_resultado_por_data(anteontem)
 
-    arquivo_hoje = obter_caminho_resultado_hoje()
-    arquivo_ontem = arquivos[-2]
+    # Verifica existência dos arquivos CSV
+    if not Path(caminho_hoje).is_file() or not Path(caminho_anteontem).is_file():
+        logging.warning(
+            "⚠️ Arquivos insuficientes para comparação retroativa; "
+            "não foram encontrados os arquivos para %s e/ou %s",
+            anteontem.strftime('%d/%m/%Y'),
+            hoje.strftime('%d/%m/%Y')
+        )
+        return pd.DataFrame()
 
-    if not arquivo_hoje.exists() or not arquivo_ontem.exists():
-        print("Arquivos do dia ou do dia anterior não encontrados.")
-        enviar_email_alerta_novos_retroativos(pd.DataFrame())
-        return
+    # Carrega os dados
+    df_hoje = pd.read_csv(caminho_hoje)
+    df_anteontem = pd.read_csv(caminho_anteontem)
 
-    retroativos = comparar(arquivo_hoje, arquivo_ontem)
+    coluna = 'numero_processo'
+    if coluna not in df_hoje.columns or coluna not in df_anteontem.columns:
+        logging.error("Coluna '%s' não encontrada nos arquivos de comparação", coluna)
+        return pd.DataFrame()
 
-    # Salvar sempre o resultado da rechecagem, mesmo vazio
-    caminho_rechecagem = obter_caminho_arquivo_rechecagem()
-    if retroativos is None or retroativos.empty:
-        retroativos = pd.DataFrame()  # Garante DataFrame vazio
-    retroativos.to_excel(caminho_rechecagem, index=False)
-    print(f"📁 Resultado da rechecagem salvo como: {caminho_rechecagem.name}")
+    # Identifica retroativos: processos em df_hoje que não estão em df_anteontem
+    df_retroativos = (
+        df_hoje[~df_hoje[coluna].isin(df_anteontem[coluna])]
+        .reset_index(drop=True)
+    )
 
-    if retroativos.empty:
-        print("ℹ️ Nenhuma diferença retroativa identificada.")
+    # Log do resultado
+    if df_retroativos.empty:
+        logging.info(
+            "Nenhum HC retroativo detectado na comparação de %s com %s",
+            hoje.strftime('%d/%m/%Y'),
+            anteontem.strftime('%d/%m/%Y')
+        )
     else:
-        print(f"✅ {len(retroativos)} processos retroativos encontrados.")
+        logging.info(
+            "Foram detectados %d HCs retroativos na comparação de %s com %s",
+            len(df_retroativos),
+            hoje.strftime('%d/%m/%Y'),
+            anteontem.strftime('%d/%m/%Y')
+        )
 
-    print("📨 Componentes de e-mail da rechecagem preparados.")
-    enviar_email_alerta_novos_retroativos(retroativos)
-
-
-if __name__ == "__main__":
-    verificar_e_enviar_alerta()
+    return df_retroativos
