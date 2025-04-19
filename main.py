@@ -75,7 +75,7 @@ def main(ontem_str: str = None):
         logging.info("CSV de resultados salvo em %s", csv_path)
 
         # 5. Exportar resultados principais para Excel
-        exportar_resultados(resultados)
+        exportar_resultados(resultados, data_ontem, data_ontem)
         logging.info("Excel de resultados exportado")
 
         # 6. Rechecagem retroativa e preparação de e‑mail
