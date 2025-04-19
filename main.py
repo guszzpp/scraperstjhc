@@ -46,7 +46,12 @@ def main(ontem_str: str = None):
         logging.info("Formulário preenchido")
 
         # 2. Navegar páginas e extrair resultados
-        resultados_brutos = navegar_paginas_e_extrair(driver)
+        resultados_brutos = navegar_paginas_e_extrair(
+            driver,
+            wait,
+            extrair_detalhes_processo,
+            data_ontem
+        )
         logging.info("Extração bruta concluída: %d itens", len(resultados_brutos))
 
         # 3. Extrair detalhes de cada processo
