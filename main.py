@@ -55,7 +55,7 @@ def main(ontem_str: str = None):
         logging.info("Extração bruta concluída: %d itens", len(resultados_brutos))
 
         # 3. Extrair detalhes de cada processo
-        resultados = [extrair_detalhes_processo(item) for item in resultados_brutos]
+        resultados = [extrair_detalhes_processo(item, wait) for item in resultados_brutos]
         logging.info("Detalhes de processos extraídos")
 
         # 4. Gerar CSV para comparação retroativa (usa data_ontem)
