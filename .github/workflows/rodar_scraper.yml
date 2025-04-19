@@ -36,81 +36,10 @@ jobs:
           echo "Data de ontem definida como: $ONTE_DATA"
           echo "ontem=$ONTE_DATA" >> $GITHUB_OUTPUT
 
-      - name: 🚀 Rodar o scraper Python
-        id: scraper
+      - name: 🚀 Rodar scraper e preparar e‑mail
         run: |
-          echo "Executando script para a data: ${{ steps.data.outputs.ontem }}"
           python main.py "${{ steps.data.outputs.ontem }}"
 
-      - name: Verificar inserções retroativas de HCs
-        if: success() && steps.scraper.outcome == 'success'
-        run: |
-          echo "Iniciando verificação de HCs retroativos..."
-          python -m retroativos.integrador
-
-      - name: 📨 Preparar e-mail da rechecagem retroativa
-        if: always()
-        id: rechecagem
-        run: |
-          echo "Rodando verificação retroativa e preparando e-mail..."
-          python -m retroativos.integrador
-      
-          SUBJECT=$(cat email_retroativo_subject.txt || echo "Rechecagem STJ - Nenhum novo HC")
-          if [ -f email_retroativo.txt ]; then
-            mapfile -t lines < email_retroativo.txt
-            BODY=$(printf '%s\n' "${lines[@]}")
-          else
-            BODY="Erro: corpo de e-mail da rechecagem não encontrado."
-          fi
-      
-          ATTACHMENT=$(ls retroativo_diferenca_*.xlsx 2>/dev/null || echo "")
-      
-          echo "email_subject_retroativo=$SUBJECT" >> $GITHUB_OUTPUT
-          echo "email_attachment_retroativo=$ATTACHMENT" >> $GITHUB_OUTPUT
-          echo "email_body_retroativo<<EOF" >> $GITHUB_ENV
-          echo "$BODY" >> $GITHUB_ENV
-          echo "EOF" >> $GITHUB_ENV
-          
-      - name: 📤 Enviar e-mail da rechecagem retroativa
-        if: always()
-        uses: dawidd6/action-send-mail@v3
-        with:
-          server_address: smtp.gmail.com
-          server_port: 465
-          username: ${{ secrets.EMAIL_USUARIO }}
-          password: ${{ secrets.EMAIL_SENHA }}
-          subject: ${{ steps.rechecagem.outputs.email_subject_retroativo }}
-          body: ${{ env.email_body_retroativo }}
-          to: ${{ secrets.EMAIL_DESTINATARIO_TESTE }}
-          from: Rechecagem STJ <${{ secrets.EMAIL_USUARIO }}>
-          attachments: ${{ steps.rechecagem.outputs.email_attachment_retroativo }}
-          
-      - name: ⚠️ Preparar e-mail de FALHA do Script
-        if: failure() && steps.scraper.outcome == 'failure'
-        id: falha_script
-        run: |
-          echo "::warning::O script Python falhou na execução!"
-          SUBJECT="❌ FALHA no Scraper STJ - ${{ steps.data.outputs.ontem }}"
-          BODY=$(cat <<EOF
-          Prezado(a),
-
-          Ocorreu uma FALHA durante a execução do script Python do scraper STJ (origem TJGO) para a data de ${{ steps.data.outputs.ontem }}.
-
-          O script não concluiu com sucesso (status de saída diferente de zero).
-
-          Por favor, verifique os logs detalhados da execução no GitHub Actions para identificar a causa raiz do problema.
-
-          Link para a execução: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-
-          Atenciosamente,
-          Sistema automatizado - GitHub Actions
-          EOF
-          )
-          echo "email_subject=$SUBJECT" >> $GITHUB_OUTPUT
-          echo "email_body<<EOF" >> $GITHUB_ENV
-          echo "$BODY" >> $GITHUB_ENV
-          echo "EOF" >> $GITHUB_ENV
-          echo "attachment_name=" >> $GITHUB_OUTPUT
 
       - name: 📄 Preparar Dados do E-mail a Partir de Arquivos
         if: success() || steps.scraper.outcome == 'success'
