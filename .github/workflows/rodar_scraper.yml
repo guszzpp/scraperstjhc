@@ -1,4 +1,4 @@
-name: Rodar scraper diariamente STJ (Origem TJGO)
+name: Rodar scraper STJ – rechecagem retroativa
 
 on:
   schedule:
@@ -37,47 +37,46 @@ jobs:
           ONTEM=$(date -d 'yesterday' '+%d/%m/%Y')
           ONTEM_ISO=$(date -d 'yesterday' '+%Y-%m-%d')
           ANTEONTEM_ISO=$(date -d '2 days ago' '+%Y-%m-%d')
-          echo "ontem=$ONTEM" >> $GITHUB_OUTPUT
-          echo "ontem_iso=$ONTEM_ISO" >> $GITHUB_OUTPUT
+          echo "ontem=$ONTEM"            >> $GITHUB_OUTPUT
+          echo "ontem_iso=$ONTEM_ISO"    >> $GITHUB_OUTPUT
           echo "anteontem_iso=$ANTEONTEM_ISO" >> $GITHUB_OUTPUT
 
-      # 5. Preparar a pasta onde ficam os CSVs
+      # 5. Preparar pasta de históricos
       - name: 📁 Preparar pasta dados_diarios
         run: mkdir -p dados_diarios
 
-      # 6. Baixar o CSV de anteontem (artifact da execução anterior)
-      - name: 📥 Download CSV de anteontem
-        uses: actions/download-artifact@v1
+      # 6. Restaurar CSV de anteontem do cache
+      - name: 📂 Restaurar CSV de anteontem
+        uses: actions/cache@v3
         with:
-          name: csv-${{ steps.datas.outputs.anteontem_iso }}
           path: dados_diarios
-          if-no-files-found: warn
+          key: dados-diarios-${{ steps.datas.outputs.anteontem_iso }}
+          restore-keys: dados-diarios-
 
-      # 7. Executar todo o fluxo no main.py
+      # 7. Rodar todo o fluxo no main.py (scraper → CSV → comparação → geração de e‑mail)
       - name: 🚀 Rodar scraper e preparar e‑mail
         run: |
           echo "Executando main.py para: ${{ steps.datas.outputs.ontem }}"
           python main.py "${{ steps.datas.outputs.ontem }}"
 
-      # 8. Enviar o CSV gerado como artifact (para o próximo run)
-      - name: 💾 Upload CSV de ontem
-        uses: actions/upload-artifact@v3
+      # 8. Salvar CSV de ontem no cache para o próximo run
+      - name: 💾 Cache CSV de ontem
+        uses: actions/cache@v3
         with:
-          name: csv-${{ steps.datas.outputs.ontem_iso }}
-          path: dados_diarios/resultados_${{ steps.datas.outputs.ontem_iso }}.csv
-          if-no-files-found: warn
+          path: dados_diarios
+          key: dados-diarios-${{ steps.datas.outputs.ontem_iso }}
 
-      # 9. Preparar variáveis de e‑mail a partir dos arquivos gerados pelo Python
-      - name: 📄 Preparar Dados do E‑mail a Partir de Arquivos
+      # 9. Preparar variáveis de e‑mail a partir dos arquivos gerados
+      - name: 📄 Preparar dados do e‑mail
         id: montar_corpo
         run: |
           SUBJECT=$(cat email_subject.txt)
           BODY=$(cat email_body.txt)
           ATTACHMENT=$(cat attachment.txt || echo "")
           echo "email_subject=$SUBJECT" >> $GITHUB_OUTPUT
-          echo "email_body<<EOF" >> $GITHUB_ENV
-          echo "$BODY" >> $GITHUB_ENV
-          echo "EOF" >> $GITHUB_ENV
+          echo "email_body<<EOF"        >> $GITHUB_ENV
+          echo "$BODY"                  >> $GITHUB_ENV
+          echo "EOF"                    >> $GITHUB_ENV
           echo "attachment_name=$ATTACHMENT" >> $GITHUB_OUTPUT
 
       # 10. Enviar o e‑mail
@@ -91,18 +90,5 @@ jobs:
           subject: ${{ steps.montar_corpo.outputs.email_subject }}
           body: ${{ env.email_body }}
           to: ${{ secrets.EMAIL_DESTINATARIO_TESTE }}
-          from: Automação STJ <${{ secrets.EMAIL_USUARIO }}>
+          from: Automação STJ <${{ secrets.EMAIL_USUARIO }}>
           attachments: ${{ steps.montar_corpo.outputs.attachment_name && format('{0}/{1}', github.workspace, steps.montar_corpo.outputs.attachment_name) || '' }}
-
-      # 11. Artefatos de debug (inclui CSV, Excel e e‑mails)
-      - name: 💾 Upload Arquivos Gerados (pelo Python)
-        if: always()
-        uses: actions/upload-artifact@v3
-        with:
-          name: arquivos-gerados-pelo-script
-          path: |
-            email_subject.txt
-            email_body.txt
-            attachment.txt
-            hc_tjgo_*.xlsx
-            dados_diarios/*.csv
