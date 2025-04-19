@@ -1,36 +1,63 @@
-from datetime import date
+# retroativos/integrador.py
+
+import logging
+from datetime import datetime, timedelta
+import pandas as pd
 from pathlib import Path
 
-from retroativos.gerenciador_arquivos import obter_caminho_resultado_hoje, listar_arquivos_resultados
-from retroativos.verificador import comparar
-from email_detalhado import enviar_email_alerta_novos_retroativos  # Essa função precisa estar implementada
+from config import ONTEM
+from retroativos.gerenciador_arquivos import obter_caminho_resultado_por_data
 
-def verificar_e_enviar_alerta():
+def obter_retroativos() -> pd.DataFrame:
     """
-    Executa a lógica de verificação de processos retroativos e envia alerta por e-mail se necessário.
+    Compara o CSV de resultados de ONTEM com o de anteontem e retorna um DataFrame
+    contendo apenas os HCs que aparecem em ONTEM mas não em anteontem.
     """
-    arquivos = listar_arquivos_resultados()
+    try:
+        data_ontem = datetime.strptime(ONTEM, "%d/%m/%Y").date()
+    except ValueError:
+        logging.error("Formato inválido de ONTEM em config.py: %s", ONTEM)
+        return pd.DataFrame()
 
-    if len(arquivos) < 2:
-        print("Ainda não há arquivos suficientes para comparação.")
-        return
+    data_anteontem = data_ontem - timedelta(days=1)
 
-    arquivo_hoje = obter_caminho_resultado_hoje()
-    arquivo_ontem = arquivos[-2]
+    caminho_hoje = obter_caminho_resultado_por_data(data_ontem)
+    caminho_anteontem = obter_caminho_resultado_por_data(data_anteontem)
 
-    if not arquivo_hoje.exists() or not arquivo_ontem.exists():
-        print("Arquivos do dia ou do dia anterior não encontrados.")
-        return
+    if not Path(caminho_hoje).is_file() or not Path(caminho_anteontem).is_file():
+        logging.warning(
+            "⚠️ Arquivos insuficientes para comparação retroativa; não foram encontrados "
+            "os arquivos para %s e/ou %s",
+            data_anteontem.strftime("%d/%m/%Y"),
+            data_ontem.strftime("%d/%m/%Y"),
+        )
+        return pd.DataFrame()
 
-    retroativos = comparar(arquivo_hoje, arquivo_ontem)
+    df_hoje = pd.read_csv(caminho_hoje)
+    df_anteontem = pd.read_csv(caminho_anteontem)
+    coluna = "numero_processo"
 
-    if retroativos is None:
-        print("Nenhum processo retroativo detectado.")
-        return
+    if coluna not in df_hoje.columns or coluna not in df_anteontem.columns:
+        logging.error("Coluna '%s' não encontrada nos arquivos de comparação", coluna)
+        return pd.DataFrame()
 
-    print(f"{len(retroativos)} processos retroativos encontrados.")
-    # Chamar o módulo de envio de e-mail com DataFrame dos retroativos
-    enviar_email_alerta_novos_retroativos(retroativos)
+    df_retroativos = (
+        df_hoje[~df_hoje[coluna].isin(df_anteontem[coluna])]
+        .reset_index(drop=True)
+    )
 
-if __name__ == "__main__":
-    verificar_e_enviar_alerta()
+    if df_retroativos.empty:
+        logging.info(
+            "Nenhum HC retroativo detectado na comparação de %s com %s",
+            data_ontem.strftime("%d/%m/%Y"),
+            data_anteontem.strftime("%d/%m/%Y"),
+        )
+    else:
+        logging.info(
+            "Foram detectados %d HCs retroativos na comparação de %s com %s",
+            len(df_retroativos),
+            data_ontem.strftime("%d/%m/%Y"),
+            data_anteontem.strftime("%d/%m/%Y"),
+        )
+
+    return df_retroativos
