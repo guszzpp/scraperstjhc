@@ -1,94 +1,85 @@
-name: Rodar scraper STJ – rechecagem retroativa
+name: Rodar scraper e verificar retroativos
 
 on:
-  schedule:
-    - cron: '0 15 * * *'
   workflow_dispatch:
+  schedule:
+    - cron: '0 0 * * *'
 
 jobs:
   run-scraper:
-    runs-on: ubuntu-latest
-
+    runs-on: ubuntu-24.04
     steps:
-      # 1. Checkout do código
-      - uses: actions/checkout@v4
+      - name: ⬇️ Clonar repositório
+        uses: actions/checkout@v4
 
-      # 2. Configurar Python
       - name: 🐍 Configurar Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.10'
 
-      # 3. Instalar dependências
-      - name: 📦 Instalar dependências Python
+      - name: 📦 Instalar dependências
         run: |
           python -m pip install --upgrade pip
-          if [ -f requirements.txt ]; then
-            pip install -r requirements.txt
-          else
-            echo "::error::Arquivo requirements.txt não encontrado!"
-            exit 1
-          fi
+          pip install -r requirements.txt
 
-      # 4. Definir as datas
-      - name: 📅 Definir datas
-        id: datas
+      - name: 📅 Obter datas
+        id: data
         run: |
           ONTEM=$(date -d 'yesterday' '+%d/%m/%Y')
-          ONTEM_ISO=$(date -d 'yesterday' '+%Y-%m-%d')
-          ANTEONTEM_ISO=$(date -d '2 days ago' '+%Y-%m-%d')
-          echo "ontem=$ONTEM"            >> $GITHUB_OUTPUT
-          echo "ontem_iso=$ONTEM_ISO"    >> $GITHUB_OUTPUT
-          echo "anteontem_iso=$ANTEONTEM_ISO" >> $GITHUB_OUTPUT
+          echo "ontem=$ONTEM" >> $GITHUB_OUTPUT
+          echo "ontem_iso=$(date -d 'yesterday' '+%Y-%m-%d')" >> $GITHUB_OUTPUT
+          echo "anteontem_iso=$(date -d '2 days ago' '+%Y-%m-%d')" >> $GITHUB_OUTPUT
+          echo "hoje=$(date '+%d/%m/%Y')" >> $GITHUB_OUTPUT
 
-      # 5. Preparar pasta de históricos
-      - name: 📁 Preparar pasta dados_diarios
-        run: mkdir -p dados_diarios
-
-      # 6. Restaurar CSV de anteontem do cache
-      - name: 📂 Restaurar CSV de anteontem
+      - name: 🗂️ Restaurar cache de dados diários
         uses: actions/cache@v3
         with:
           path: dados_diarios
-          key: dados-diarios-${{ steps.datas.outputs.anteontem_iso }}
-          restore-keys: dados-diarios-
+          key: dados-diarios-${{ steps.data.outputs.ontem_iso }}
 
-      # 7. Rodar todo o fluxo no main.py (scraper → CSV → comparação → geração de e‑mail)
-      - name: 🚀 Rodar scraper e preparar e‑mail
+      - name: ▶️ Rodar main.py com data de ontem
         run: |
-          echo "Executando main.py para: ${{ steps.datas.outputs.ontem }}"
-          python main.py "${{ steps.datas.outputs.ontem }}"
+          echo "Executando main.py para: ${{ steps.data.outputs.ontem }}"
+          python main.py "${{ steps.data.outputs.ontem }}"
 
-      # 8. Salvar CSV de ontem no cache para o próximo run
-      - name: 💾 Cache CSV de ontem
+      - name: 🗂️ Salvar CSV como artefato
+        uses: actions/upload-artifact@v3
+        with:
+          name: resultados-${{ steps.data.outputs.ontem_iso }}
+          path: dados_diarios/*.csv
+
+      - name: 💾 Salvar novo cache de dados diários
         uses: actions/cache@v3
         with:
           path: dados_diarios
-          key: dados-diarios-${{ steps.datas.outputs.ontem_iso }}
+          key: dados-diarios-${{ steps.data.outputs.ontem_iso }}
 
-      # 9. Preparar variáveis de e‑mail a partir dos arquivos gerados
-      - name: 📄 Preparar dados do e‑mail
-        id: montar_corpo
+      - name: 🧪 Gerar conteúdo do e-mail
+        id: gerar_email
         run: |
-          SUBJECT=$(cat email_subject.txt)
-          BODY=$(cat email_body.txt)
-          ATTACHMENT=$(cat attachment.txt || echo "")
-          echo "email_subject=$SUBJECT" >> $GITHUB_OUTPUT
-          echo "email_body<<EOF"        >> $GITHUB_ENV
-          echo "$BODY"                  >> $GITHUB_ENV
-          echo "EOF"                    >> $GITHUB_ENV
-          echo "attachment_name=$ATTACHMENT" >> $GITHUB_OUTPUT
+          if [[ ! -f email_subject.txt ]]; then
+            echo "email_subject=✅ Relatório de HCs STJ (Origem TJGO) - ${{ steps.data.outputs.ontem }}" >> $GITHUB_OUTPUT
+            echo "email_body<<EOF" >> $GITHUB_ENV
+            echo "Nenhum novo Habeas Corpus retroativo (autuado em data anterior, mas só detectado hoje) foi localizado no STJ com origem no TJGO, na rechecagem realizada em ${{ steps.data.outputs.hoje }} para o dia ${{ steps.data.outputs.anteontem_iso }}." >> $GITHUB_ENV
+            echo "EOF" >> $GITHUB_ENV
+            echo "attachment_name=" >> $GITHUB_OUTPUT
+          else
+            echo "email_subject=$(cat email_subject.txt)" >> $GITHUB_OUTPUT
+            echo "email_body<<EOF" >> $GITHUB_ENV
+            cat email_body.txt >> $GITHUB_ENV
+            echo "EOF" >> $GITHUB_ENV
+            echo "attachment_name=$(cat attachment.txt || echo '')" >> $GITHUB_OUTPUT
+          fi
 
-      # 10. Enviar o e‑mail
-      - name: 📤 Enviar E‑mail
+      - name: 📤 Enviar e-mail
         uses: dawidd6/action-send-mail@v3
         with:
           server_address: smtp.gmail.com
-          server_port: 465
-          username: ${{ secrets.EMAIL_USUARIO }}
-          password: ${{ secrets.EMAIL_SENHA }}
-          subject: ${{ steps.montar_corpo.outputs.email_subject }}
+          server_port: 587
+          username: ${{ secrets.EMAIL_USER }}
+          password: ${{ secrets.EMAIL_PASS }}
+          subject: ${{ steps.gerar_email.outputs.email_subject }}
           body: ${{ env.email_body }}
-          to: ${{ secrets.EMAIL_DESTINATARIO_TESTE }}
-          from: Automação STJ <${{ secrets.EMAIL_USUARIO }}>
-          attachments: ${{ steps.montar_corpo.outputs.attachment_name && format('{0}/{1}', github.workspace, steps.montar_corpo.outputs.attachment_name) || '' }}
+          to: ${{ secrets.EMAIL_DEST }}
+          from: Scraper STJ HC <${{ secrets.EMAIL_USER }}>
+          attachments: ${{ steps.gerar_email.outputs.attachment_name }}
