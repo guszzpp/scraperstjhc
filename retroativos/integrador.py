@@ -1,9 +1,9 @@
 from datetime import date
- from pathlib import Path
- 
- from retroativos.gerenciador_arquivos import obter_caminho_resultado_hoje, listar_arquivos_resultados
- from retroativos.verificador import comparar
- from email_detalhado import enviar_email_alerta_novos_retroativos  # Essa função precisa estar implementada
+from pathlib import Path
+
+from retroativos.gerenciador_arquivos import obter_caminho_resultado_hoje, listar_arquivos_resultados
+from retroativos.verificador import comparar
+from email_detalhado import enviar_email_alerta_novos_retroativos  # Essa função precisa estar implementada
  
  def verificar_e_enviar_alerta():
      """
