@@ -3,7 +3,7 @@ name: Rodar scraper e verificar retroativos
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 0 * * *'
+    - cron: '0 11 * * *'  # 11:00 UTC = 08:00 Brasília
 
 jobs:
   run-scraper:
@@ -35,7 +35,9 @@ jobs:
         uses: actions/cache@v3
         with:
           path: dados_diarios
-          key: dados-diarios-${{ steps.data.outputs.ontem_iso }}
+          key: dados-diarios-${{ github.sha }}
+          restore-keys: |
+            dados-diarios-
 
       - name: ▶️ Rodar main.py com data de ontem
         run: |
@@ -48,28 +50,23 @@ jobs:
           name: resultados-${{ steps.data.outputs.ontem_iso }}
           path: dados_diarios/*.csv
 
-      - name: 💾 Salvar novo cache de dados diários
-        uses: actions/cache@v3
-        with:
-          path: dados_diarios
-          key: dados-diarios-${{ steps.data.outputs.ontem_iso }}
-
-      - name: 🧪 Gerar conteúdo do e-mail
-        id: gerar_email
+      - name: 🔎 Verificar retroativos
         run: |
-          if [[ ! -f email_subject.txt ]]; then
-            echo "email_subject=✅ Relatório de HCs STJ (Origem TJGO) - ${{ steps.data.outputs.ontem }}" >> $GITHUB_OUTPUT
-            echo "email_body<<EOF" >> $GITHUB_ENV
-            echo "Nenhum novo Habeas Corpus retroativo (autuado em data anterior, mas só detectado hoje) foi localizado no STJ com origem no TJGO, na rechecagem realizada em ${{ steps.data.outputs.hoje }} para o dia ${{ steps.data.outputs.anteontem_iso }}." >> $GITHUB_ENV
-            echo "EOF" >> $GITHUB_ENV
-            echo "attachment_name=" >> $GITHUB_OUTPUT
-          else
-            echo "email_subject=$(cat email_subject.txt)" >> $GITHUB_OUTPUT
-            echo "email_body<<EOF" >> $GITHUB_ENV
-            cat email_body.txt >> $GITHUB_ENV
-            echo "EOF" >> $GITHUB_ENV
-            echo "attachment_name=$(cat attachment.txt || echo '')" >> $GITHUB_OUTPUT
-          fi
+          echo "Verificando HCs retroativos entre ${{ steps.data.outputs.anteontem_iso }} e ${{ steps.data.outputs.ontem_iso }}"
+          python -c "
+import pandas as pd
+from datetime import datetime
+from pathlib import Path
+from retroativos.integrador import obter_retroativos
+from retroativos.gerenciador_arquivos import salvar_csv_resultado
+from email_detalhado import preparar_email_alerta_retroativos
+
+# Executar verificação de retroativos
+df_retroativos = obter_retroativos()
+
+# Preparar conteúdo do email baseado nos resultados
+preparar_email_alerta_retroativos(df_retroativos)
+"
 
       - name: 📤 Enviar e-mail
         uses: dawidd6/action-send-mail@v3
@@ -78,8 +75,8 @@ jobs:
           server_port: 587
           username: ${{ secrets.EMAIL_USER }}
           password: ${{ secrets.EMAIL_PASS }}
-          subject: ${{ steps.gerar_email.outputs.email_subject }}
-          body: ${{ env.email_body }}
+          subject: ${{ steps.gerar_email.outputs.email_subject || 'Relatório de HCs STJ (Origem TJGO)' }}
+          body: ${{ env.email_body || 'Execução concluída. Nenhuma notificação gerada.' }}
           to: ${{ secrets.EMAIL_DEST }}
           from: Scraper STJ HC <${{ secrets.EMAIL_USER }}>
-          attachments: ${{ steps.gerar_email.outputs.attachment_name }}
+          attachments: ${{ steps.gerar_email.outputs.attachment_name || '' }}
