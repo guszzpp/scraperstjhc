@@ -45,7 +45,7 @@ jobs:
           python main.py "${{ steps.data.outputs.ontem }}"
 
       - name: 🗂️ Salvar CSV como artefato
-        uses: actions/upload-artifact@v3.1.3
+        uses: actions/upload-artifact@v2
         with:
           name: resultados-${{ steps.data.outputs.ontem_iso }}
           path: dados_diarios/*.csv
