@@ -75,8 +75,8 @@ preparar_email_alerta_retroativos(df_retroativos)
           server_port: 587
           username: ${{ secrets.EMAIL_USER }}
           password: ${{ secrets.EMAIL_PASS }}
-          subject: ${{ steps.gerar_email.outputs.email_subject || 'Relatório de HCs STJ (Origem TJGO)' }}
-          body: ${{ env.email_body || 'Execução concluída. Nenhuma notificação gerada.' }}
+          subject: "${{ steps.gerar_email.outputs.email_subject || 'Relatório de HCs STJ (Origem TJGO)' }}"
+          body: "${{ env.email_body || 'Execução concluída. Nenhuma notificação gerada.' }}"
           to: ${{ secrets.EMAIL_DEST }}
-          from: Scraper STJ HC <${{ secrets.EMAIL_USER }}>
+          from: "Scraper STJ HC <${{ secrets.EMAIL_USER }}>"
           attachments: ${{ steps.gerar_email.outputs.attachment_name || '' }}
