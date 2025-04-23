@@ -1,7 +1,9 @@
 import sys
 import logging
+import pandas as pd
 from datetime import datetime
 from selenium.common.exceptions import TimeoutException
+from selenium.webdriver.support.ui import WebDriverWait
 from navegador import iniciar_navegador
 from extrator import extrair_detalhes_processo
 from exportador import exportar_resultados
@@ -9,7 +11,7 @@ from paginador import navegar_paginas_e_extrair
 from formulario import preencher_formulario
 from config import ORGAO_ORIGEM, URL_PESQUISA
 from retroativos.integrador import obter_retroativos
-from retroativos.notificador import notificar_resultados
+from retroativos.gerenciador_arquivos import salvar_csv_resultado
 
 logging.basicConfig(
     level=logging.INFO,
@@ -21,39 +23,45 @@ def main(data_referencia: str):
     logging.info("Iniciando scraper de HCs STJ (Origem TJGO)")
 
     try:
+        # Iniciar navegador e configurar wait
         navegador = iniciar_navegador()
-        navegador.get(URL_PESQUISA)
+        wait = WebDriverWait(navegador, 30)  # Timeout de 30 segundos
 
-        preencher_formulario(navegador, data_referencia, ORGAO_ORIGEM)
-        resultados_brutos = navegar_paginas_e_extrair(navegador)
-        resultados_completos = []
-
-        for idx, item in enumerate(resultados_brutos):
-            try:
-                detalhes = extrair_detalhes_processo(navegador, item)
-                if detalhes:
-                    resultados_completos.append(detalhes)
-                else:
-                    logging.warning("❗ Registro nulo na posição %d. Ignorado.", idx)
-            except Exception as e:
-                logging.warning("⚠️ Erro ao extrair dados de Processo: %s", e)
-
-        exportar_resultados(resultados_completos, data_referencia)
+        # Preencher formulário com data de referência
+        preencher_formulario(navegador, wait, data_referencia, data_referencia)
+        
+        # Obter resultados
+        resultados, paginas_info = navegar_paginas_e_extrair(
+            navegador, 
+            wait, 
+            extrair_detalhes_processo, 
+            data_referencia
+        )
+        
+        # Log de informações sobre páginas
+        for info in paginas_info:
+            logging.info(info)
+            
+        # Exportar para Excel
+        caminho_excel = exportar_resultados(resultados, data_referencia, data_referencia)
+        
+        # Salvar CSV para sistema de retroativos
+        if resultados:
+            df = pd.DataFrame(resultados)
+            caminho_csv = salvar_csv_resultado(df, data_referencia)
+            logging.info(f"Dados salvos no formato CSV em: {caminho_csv}")
+        else:
+            logging.info("Nenhum resultado encontrado, CSV não gerado.")
+            
+        # Fechar navegador
         navegador.quit()
-
-        # Comparar retroativos e gerar notificação
-        try:
-            df_retroativos = obter_retroativos()
-        except Exception as e:
-            logging.error("Erro ao verificar retroativos: %s", e)
-            df_retroativos = None
-
-        notificar_resultados(data_referencia, resultados_completos, df_retroativos)
-
+        
+        logging.info("Scraper concluído com sucesso.")
+        
     except TimeoutException:
         logging.error("Erro: Timeout durante a execução")
     except Exception as e:
-        logging.error("Erro inesperado: %s", e)
+        logging.error("Erro inesperado: %s", e, exc_info=True)
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
