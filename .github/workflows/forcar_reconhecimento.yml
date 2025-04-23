@@ -1,0 +1,11 @@
+name: Forçar reconhecimento
+
+on:
+  workflow_dispatch:
+
+jobs:
+  no-op:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Não faz nada
+        run: echo "Forçando GitHub a reconhecer workflows"
