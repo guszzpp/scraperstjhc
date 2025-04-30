@@ -1,3 +1,6 @@
+# Correção do arquivo .github/workflows/rechecagem.yml
+
+```yaml
 name: Rechecagem Diária
 
 on:
@@ -92,7 +95,7 @@ jobs:
           server_port: 587
           username: ${{ secrets.EMAIL_USUARIO }}
           password: ${{ secrets.EMAIL_SENHA }}
-          subject: "🚨 ALERTA: Divergência detectada na rechecagem de HCs TJGO - ${{ steps.data.outputs.ontem }}"
+          subject: "🚨 ALERTA: Divergência na rechecagem STJ/TJGO - ${{ steps.data.outputs.ontem }}"
           body: |
             <p><strong>Relatório de Rechecagem - ${{ steps.data.outputs.ontem }}</strong></p>
             <p>Prezado(a),</p>
@@ -116,12 +119,13 @@ jobs:
           server_port: 587
           username: ${{ secrets.EMAIL_USUARIO }}
           password: ${{ secrets.EMAIL_SENHA }}
-          subject: "ℹ️ Nenhum HC retroativo STJ/TJGO - ${{ steps.data.outputs.ontem }}"
+          subject: "ℹ️ Sem divergências na rechecagem STJ/TJGO - ${{ steps.data.outputs.ontem }}"
           body: |
             <p><strong>Relatório de Rechecagem - ${{ steps.data.outputs.ontem }}</strong></p>
             <p>Prezado(a),</p>
-            <p>Nenhum novo Habeas Corpus retroativo (autuado em data anterior, mas só detectado hoje) foi localizado no STJ com origem no TJGO, na rechecagem realizada em ${{ steps.data.outputs.ontem }} para o dia ${{ steps.data.outputs.anteontem }}.</p>
-            <p>Essa rechecagem visa identificar inserções tardias pelo sistema do STJ — e hoje, nenhuma nova inserção desse tipo foi identificada.</p>
+            <p>Nenhuma divergência foi encontrada na rechecagem dos HCs do STJ com origem no TJGO realizada em 
+            ${{ steps.data.outputs.ontem }} para o dia ${{ steps.data.outputs.anteontem }}.</p>
+            <p>Essa rechecagem visa identificar inserções tardias pelo sistema do STJ — e hoje não foi identificada nenhuma inserção desse tipo.</p>
             <hr>
             <p style='color: #777; font-size: 12px;'>Este e-mail foi gerado automaticamente pelo sistema de rechecagem. Em caso de dúvidas, entre em contato com o administrador do sistema.</p>
             <p style='color: #777; font-size: 12px;'>© 2025 - Sistema Automatizado de Monitoramento de HCs STJ/TJGO</p>
@@ -129,3 +133,4 @@ jobs:
           from: "Rechecagem STJ HC <${{ secrets.EMAIL_USUARIO }}>"
           attachments: dados_diarios/rechecagem_hc_tjgo_${{ steps.data.outputs.ontem_fmt }}.xlsx
           content_type: text/html
+```
