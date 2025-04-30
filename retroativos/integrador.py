@@ -3,12 +3,12 @@ import logging
 from datetime import datetime, timedelta
 import pandas as pd
 from pathlib import Path
-from config import ONTEM  # Mantém apenas a importação da variável ONTEM
+from config import ONTEM
 from retroativos.gerenciador_arquivos import obter_caminho_resultado_por_data
 
 def obter_retroativos() -> pd.DataFrame:
     """
-    Compara o CSV de resultados de ONTEM com o de anteontem e retorna um DataFrame
+    Compara o Excel de resultados de ONTEM com o de anteontem e retorna um DataFrame
     contendo apenas os HCs que aparecem em ONTEM mas não em anteontem.
     """
     try:
@@ -33,8 +33,8 @@ def obter_retroativos() -> pd.DataFrame:
         return pd.DataFrame()
     
     # Agora que temos os arquivos, podemos continuar com a comparação
-    df_hoje = pd.read_csv(caminho_hoje)
-    df_anteontem = pd.read_csv(caminho_anteontem)
+    df_hoje = pd.read_excel(caminho_hoje)
+    df_anteontem = pd.read_excel(caminho_anteontem)
     
     coluna = "numero_processo"
     if coluna not in df_hoje.columns or coluna not in df_anteontem.columns:
