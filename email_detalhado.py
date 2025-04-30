@@ -127,17 +127,24 @@ def preparar_email_relatorio_diario(data_busca, caminho_arquivo=None, mensagem_s
         else:
             subject = f"ℹ️ Nenhum HC encontrado na checagem STJ/TJGO - {data_busca}"
 
-        body = (
-            f"<p>Prezado(a),</p>"
-            f"<p>Segue em anexo o relatório de Habeas Corpus (HCs) autuados no STJ com origem no TJGO, referente à data <strong>{data_busca}</strong>.</p>"
-            f"<br>"
-            f"<p><strong>Resumo da execução:</strong></p>"
-            f"<ul>"
-            f"<li><strong>Data de busca:</strong> {data_busca}</li>"
-            f"<li><strong>Data de execução:</strong> {hoje.strftime('%d/%m/%Y')}</li>"
-            f"<li><strong>Origem:</strong> TJGO</li>"
-            f"</ul>"
-        )
+        body = dedent(f"""\
+            Prezado(a),
+
+            Segue em anexo o relatório de Habeas Corpus (HCs) autuados no STJ, com origem no TJGO, referente ao período de {data_busca} a {data_busca}.
+
+            Resumo da execução:
+            - Resultados encontrados pelo site: {total_site}
+            - HCs efetivamente extraídos: {total_extraidos} (detalhes no anexo)
+            - Páginas processadas: {paginas_processadas} de {paginas_total}
+            - Script finalizado em: {horario_finalizacao} (Duração: {duracao_segundos:.2f}s)
+
+            O arquivo '{nome_arquivo}' está anexado a este e-mail.
+
+            Esta automação tem como objetivo auxiliar no acompanhamento processual, mas **não substitui a conferência manual nos canais oficiais do STJ**.
+
+            Atenciosamente,
+            Sistema automatizado
+        """)
 
         if erros:
             body += "<p><strong>⚠️ Erros detectados:</strong></p><ul>"
@@ -151,14 +158,14 @@ def preparar_email_relatorio_diario(data_busca, caminho_arquivo=None, mensagem_s
         else:
             body += f"<p><strong>Status:</strong> Nenhum HC localizado.</p>"
 
-        body += (
-            f"<br>"
-            f"<p><strong>Observação:</strong> Esta automação tem como objetivo auxiliar no acompanhamento processual, mas "
-            f"<strong>não substitui a conferência manual nos canais oficiais do STJ</strong>.</p>"
-            f"<br>"
-            f"<p style='color: #777; font-size: 12px;'>Este e-mail foi gerado automaticamente pelo sistema de monitoramento de HCs.</p>"
-            f"<p style='color: #777; font-size: 12px;'>© {hoje.year} - Sistema Automatizado STJ/TJGO</p>"
-        )
+        body += dedent(f"""\
+    
+            Esta automação tem como objetivo auxiliar no acompanhamento processual, mas **não substitui a conferência manual nos canais oficiais do STJ**.
+
+            Atenciosamente,
+            Sistema automatizado
+        """)
+
 
         Path("email_subject.txt").write_text(subject, encoding="utf-8")
         Path("email_body.txt").write_text(body, encoding="utf-8")

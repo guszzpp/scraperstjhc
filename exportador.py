@@ -29,6 +29,9 @@ def exportar_resultados(resultados, data_inicial, data_final):
         top=Side(style="thin"),
         bottom=Side(style="thin")
     )
+    if "header_style" not in wb.named_styles:
+    wb.add_named_style(header_style)
+
     wb.add_named_style(header_style)
     
     # Estilo para linhas pares

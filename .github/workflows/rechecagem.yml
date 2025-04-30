@@ -130,10 +130,3 @@ jobs:
           from: "Rechecagem STJ HC <${{ secrets.EMAIL_USUARIO }}>"
           attachments: dados_diarios/rechecagem_hc_tjgo_${{ steps.data.outputs.ontem_fmt }}.xlsx
           content_type: text/html
-
-      - name: Enviar e-mail da rechecagem
-        run: python3 scripts/enviar_email_html.py
-        env:
-          EMAIL_USUARIO: ${{ secrets.EMAIL_USUARIO }}
-          EMAIL_SENHA: ${{ secrets.EMAIL_SENHA }}
-          EMAIL_DESTINATARIO: ${{ secrets.EMAIL_DESTINATARIO }}
