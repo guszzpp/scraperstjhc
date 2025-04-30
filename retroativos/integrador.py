@@ -3,7 +3,7 @@ import logging
 from datetime import datetime, timedelta
 import pandas as pd
 from pathlib import Path
-from config import ONTEM
+from config import ONTEM  # Mantém apenas a importação da variável ONTEM
 from retroativos.gerenciador_arquivos import obter_caminho_resultado_por_data
 
 def obter_retroativos() -> pd.DataFrame:
