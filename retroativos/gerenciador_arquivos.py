@@ -60,12 +60,26 @@ def obter_caminho_resultado_por_data(data_ref: date) -> str:
     # Se chegou até aqui, não foi possível obter o arquivo
     return ""
 
-def salvar_csv_resultado(df: pd.DataFrame, data_ref: date) -> str:
+def salvar_csv_resultado(df: pd.DataFrame, data_ref) -> str:
     """
     Salva o DataFrame como Excel no diretório de dados diários.
     Retorna o caminho do arquivo salvo.
+    
+    Args:
+        df: DataFrame a ser salvo
+        data_ref: Data de referência (pode ser string ou objeto date)
     """
-    data_fmt = data_ref.strftime("%d-%m-%Y")
+    # Verificar se a data_ref é uma string e converter para o formato correto
+    if isinstance(data_ref, str):
+        # Se for uma string no formato DD/MM/YYYY, converter para DD-MM-YYYY
+        if '/' in data_ref:
+            data_fmt = data_ref.replace('/', '-')
+        else:
+            data_fmt = data_ref  # Assume que já está no formato correto
+    else:
+        # Se for um objeto date, usar strftime
+        data_fmt = data_ref.strftime("%d-%m-%Y")
+    
     nome_arquivo = f"hc_tjgo_{data_fmt}.xlsx"
     caminho = Path("dados_diarios") / nome_arquivo
     
