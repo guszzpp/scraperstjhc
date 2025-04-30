@@ -6,16 +6,22 @@ from datetime import date
 from pathlib import Path
 import logging
 import tempfile
-import openpyxl
 
-# Importe as configurações do Supabase
-from config import SUPABASE_URL, SUPABASE_KEY, SUPABASE_BUCKET
+# Obter variáveis de ambiente
+SUPABASE_URL = os.environ.get("SUPABASE_URL")
+SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
+SUPABASE_BUCKET = os.environ.get("SUPABASE_BUCKET")
 
 def obter_caminho_resultado_por_data(data_ref: date) -> str:
     """
     Baixa o arquivo do Supabase para a data especificada e o converte para CSV.
     Retorna o caminho do arquivo CSV temporário.
     """
+    # Verifica se as variáveis de ambiente estão disponíveis
+    if not all([SUPABASE_URL, SUPABASE_KEY, SUPABASE_BUCKET]):
+        logging.error("Variáveis de ambiente do Supabase não configuradas")
+        return ""
+    
     # Cria diretório temporário para armazenar os arquivos baixados
     temp_dir = Path(tempfile.gettempdir()) / "scraper_stj_temp"
     os.makedirs(temp_dir, exist_ok=True)
@@ -36,6 +42,8 @@ def obter_caminho_resultado_por_data(data_ref: date) -> str:
     try:
         # URL para o arquivo no Supabase
         url = f"{SUPABASE_URL}/storage/v1/object/public/{SUPABASE_BUCKET}/{nome_arquivo_supabase}"
+        
+        logging.info(f"Tentando baixar arquivo: {url}")
         
         # Baixa o arquivo
         headers = {"apikey": SUPABASE_KEY}
@@ -61,31 +69,3 @@ def obter_caminho_resultado_por_data(data_ref: date) -> str:
     
     # Se chegou até aqui, não foi possível obter o arquivo
     return ""
-
-def salvar_csv_resultado(df: pd.DataFrame, data_ref: date) -> str:
-    """
-    Salva o DataFrame como CSV no diretório de dados diários
-    e também o envia para o Supabase.
-    Retorna o caminho do arquivo salvo.
-    """
-    data_iso = data_ref.strftime("%Y-%m-%d")
-    data_fmt = data_ref.strftime("%d-%m-%Y")
-    
-    # Salva localmente primeiro
-    nome_arquivo_csv = f"resultados_{data_iso}.csv"
-    caminho_local = Path("dados_diarios") / nome_arquivo_csv
-    
-    # Garante que o diretório existe
-    os.makedirs(os.path.dirname(caminho_local), exist_ok=True)
-    
-    # Salva o DataFrame como CSV
-    df.to_csv(caminho_local, index=False)
-    
-    # Tenta enviar para o Supabase
-    try:
-        # Implementar o código para upload ao Supabase se necessário
-        pass
-    except Exception as e:
-        logging.error(f"Erro ao enviar o arquivo para o Supabase: {str(e)}")
-    
-    return str(caminho_local)
