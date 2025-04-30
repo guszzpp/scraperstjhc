@@ -69,12 +69,6 @@ jobs:
         run: |
           python supabase/supabase_upload.py dados_diarios/hc_tjgo_${{ steps.data.outputs.ontem_fmt }}.xlsx hc_tjgo_${{ steps.data.outputs.ontem_fmt }}.xlsx
           
-      # Verificar retroativos
-      - name: 🔎 Verificar retroativos
-        run: |
-          echo "Verificando HCs retroativos"
-          python -c "import pandas as pd; from datetime import datetime; from pathlib import Path; from retroativos.integrador import obter_retroativos; from retroativos.gerenciador_arquivos import salvar_csv_resultado; from email_detalhado import preparar_email_alerta_retroativos; df_retroativos = obter_retroativos(); preparar_email_alerta_retroativos(df_retroativos)"
-         
       # Gerar email de status
       - name: 📧 Gerar conteúdo do email
         id: gerar_email
@@ -82,7 +76,7 @@ jobs:
           if [ -f "email_subject.txt" ]; then
             echo "email_subject=$(cat email_subject.txt)" >> $GITHUB_OUTPUT
           else
-            echo "email_subject=Relatório de HCs STJ (Origem TJGO) - ${{ steps.data.outputs.ontem }}" >> $GITHUB_OUTPUT
+            echo "email_subject=Resultados da checagem de HCs STJ/TJGO - ${{ steps.data.outputs.ontem }}" >> $GITHUB_OUTPUT
           fi
           
           if [ -f "email_body.txt" ]; then
@@ -112,5 +106,6 @@ jobs:
           subject: "${{ steps.gerar_email.outputs.email_subject }}"
           body: "${{ env.email_body }}"
           to: ${{ secrets.EMAIL_DESTINATARIO_TESTE }}
-          from: "Scraper STJ HC <${{ secrets.EMAIL_USUARIO }}>"
+          from: "Checagem STJ HC <${{ secrets.EMAIL_USUARIO }}>"
           attachments: ${{ steps.gerar_email.outputs.attachment_name || '' }}
+          content_type: text/html
