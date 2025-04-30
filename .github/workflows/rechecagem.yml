@@ -8,6 +8,14 @@ on:
 jobs:
   recheck:
     runs-on: ubuntu-latest
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_BUCKET: ${{ secrets.SUPABASE_BUCKET }}
+      SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+      EMAIL_USER: ${{ secrets.EMAIL_USUARIO }}
+      EMAIL_PASS: ${{ secrets.EMAIL_SENHA }}
+      EMAIL_DEST: ${{ secrets.EMAIL_DESTINATARIO_TESTE }}
+      
     steps:
       - name: 📥 Checkout repository
         uses: actions/checkout@v4
@@ -37,20 +45,12 @@ jobs:
           echo "anteontem_fmt=$ANTEONTEM_FMT" >> $GITHUB_OUTPUT
 
       - name: ⬇️ Download dos arquivos do Supabase
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
-          SUPABASE_BUCKET: ${{ secrets.SUPABASE_BUCKET }}
         run: |
           python supabase/supabase_download.py ${{ secrets.SUPABASE_URL }} ${{ secrets.SUPABASE_BUCKET }} hc_tjgo_${{ steps.data.outputs.anteontem_fmt }}.xlsx dados_diarios/hc_tjgo_${{ steps.data.outputs.anteontem_fmt }}.xlsx
           python supabase/supabase_download.py ${{ secrets.SUPABASE_URL }} ${{ secrets.SUPABASE_BUCKET }} hc_tjgo_${{ steps.data.outputs.ontem_fmt }}.xlsx dados_diarios/hc_tjgo_${{ steps.data.outputs.ontem_fmt }}.xlsx
 
       - name: 🔄 Executar script de rechecagem
         id: rechecagem
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
-          SUPABASE_BUCKET: ${{ secrets.SUPABASE_BUCKET }}
         run: |
           python retroativos/rechecagem_melhorada.py "${{ steps.data.outputs.anteontem }}" "${{ steps.data.outputs.ontem }}"
 
@@ -65,10 +65,6 @@ jobs:
           fi
 
       - name: ☁️ Upload do arquivo de rechecagem para Supabase
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
-          SUPABASE_BUCKET: ${{ secrets.SUPABASE_BUCKET }}
         run: |
           python supabase/supabase_upload.py dados_diarios/rechecagem_hc_tjgo_${{ steps.data.outputs.ontem_fmt }}.xlsx rechecagem_hc_tjgo_${{ steps.data.outputs.ontem_fmt }}.xlsx
 
