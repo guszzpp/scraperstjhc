@@ -21,15 +21,13 @@ def preparar_email_alerta_retroativos(df_retroativos: pd.DataFrame):
     try:
         if df_retroativos is None or df_retroativos.empty:
             logging.info("Nenhum HC retroativo encontrado.")
-            subject = f"ℹ️ Nenhum HC retroativo STJ/TJGO - {hoje.strftime('%d/%m/%Y')}"
+            subject = f"ℹ️ Sem divergências na rechecagem STJ/TJGO - {hoje.strftime('%d/%m/%Y')}"
             body = (
                 f"<p><strong>Relatório de Rechecagem - {hoje.strftime('%d/%m/%Y')}</strong></p>"
                 f"<p>Prezado(a),</p>"
-                f"<p>Nenhum novo Habeas Corpus retroativo (autuado em data anterior, mas só detectado hoje) "
-                f"foi localizado no STJ com origem no TJGO, na rechecagem realizada em "
+                f"<p>Nenhuma divergência foi encontrada na rechecagem dos HCs do STJ com origem no TJGO realizada em "
                 f"{hoje.strftime('%d/%m/%Y')} para o dia {anteontem.strftime('%d/%m/%Y')}.</p>"
-                f"<p>Essa rechecagem visa identificar inserções tardias pelo sistema do STJ — e hoje, "
-                f"nenhuma nova inserção desse tipo foi identificada.</p>"
+                f"<p>Essa rechecagem visa identificar inserções tardias pelo sistema do STJ — e hoje não foi identificada nenhuma inserção desse tipo.</p>"
                 f"<hr>"
                 f"<p style='color: #777; font-size: 12px;'>Este e-mail foi gerado automaticamente pelo sistema "
                 f"de rechecagem. Em caso de dúvidas, entre em contato com o administrador do sistema.</p>"
@@ -38,13 +36,13 @@ def preparar_email_alerta_retroativos(df_retroativos: pd.DataFrame):
             attachment = ""
         else:
             num_hcs = len(df_retroativos)
-            subject = f"🚨 ALERTA: {num_hcs} HC(s) retroativo(s) STJ/TJGO - {hoje.strftime('%d/%m/%Y')}"
+            subject = f"🚨 ALERTA: {num_hcs} HC(s) encontrados na rechecagem STJ/TJGO - {hoje.strftime('%d/%m/%Y')}"
             
             # Criar corpo do email em HTML para facilitar visualização
             body = (
-                f"<p><strong>🚨 ALERTA DE RETROATIVOS - {hoje.strftime('%d/%m/%Y')}</strong></p>"
+                f"<p><strong>🚨 ALERTA: Divergência na rechecagem - {hoje.strftime('%d/%m/%Y')}</strong></p>"
                 f"<p>Prezado(a),</p>"
-                f"<p><strong>Foram detectados {num_hcs} novos Habeas Corpus com datas anteriores à rechecagem:</strong></p>"
+                f"<p><strong>Foram detectados {num_hcs} Habeas Corpus com datas anteriores à rechecagem:</strong></p>"
                 f"<table border='1' cellpadding='5' cellspacing='0' style='border-collapse: collapse; width: 100%;'>"
                 f"<tr style='background-color: #f2f2f2;'>"
                 f"<th>Número do Processo</th><th>Relator</th><th>Situação</th><th>Data de Autuação</th></tr>"
@@ -162,15 +160,15 @@ def preparar_email_relatorio_diario(data_busca, caminho_arquivo=None, mensagem_s
         # Verifica se há um arquivo para anexar
         tem_anexo = caminho_arquivo and os.path.exists(caminho_arquivo)
         
-        # Define o assunto do e-mail
+        # Define o assunto do e-mail - CORRIGIDO
         if erros:
-            subject = f"⚠️ Alerta: Erros no scraper de HCs STJ/TJGO - {hoje.strftime('%d/%m/%Y')}"
+            subject = f"⚠️ Alerta: Erros na checagem de HCs STJ/TJGO - {hoje.strftime('%d/%m/%Y')}"
         elif tem_anexo:
-            subject = f"✅ HCs STJ/TJGO encontrados - {hoje.strftime('%d/%m/%Y')}"
+            subject = f"✅ Resultados da checagem de HCs STJ/TJGO - {hoje.strftime('%d/%m/%Y')}"
         else:
-            subject = f"ℹ️ Nenhum HC STJ/TJGO encontrado - {hoje.strftime('%d/%m/%Y')}"
+            subject = f"ℹ️ Nenhum HC encontrado na checagem STJ/TJGO - {hoje.strftime('%d/%m/%Y')}"
         
-        # Constrói o corpo do e-mail
+        # Constrói o corpo do e-mail - CORRIGIDO
         body = (
             f"<p><strong>Relatório Diário de HCs STJ (TJGO) - {hoje.strftime('%d/%m/%Y')}</strong></p>"
             f"<p>Prezado(a),</p>"
