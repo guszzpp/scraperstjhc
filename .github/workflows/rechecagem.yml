@@ -78,8 +78,8 @@ jobs:
         with:
           server_address: smtp.gmail.com
           server_port: 587
-          username: ${{ secrets.EMAIL_USER }}
-          password: ${{ secrets.EMAIL_PASS }}
+          username: ${{ secrets.EMAIL_USUARIO }}
+          password: ${{ secrets.EMAIL_SENHA }}
           subject: "🚨 ALERTA: Divergência detectada na rechecagem de HCs TJGO"
           body: |
             Prezado(a),
@@ -90,6 +90,6 @@ jobs:
             Por favor, consulte o arquivo em anexo para mais detalhes.
 
             Esta é uma mensagem automatizada.
-          to: ${{ secrets.EMAIL_DEST }}
-          from: "Rechecagem STJ HC <${{ secrets.EMAIL_USER }}>"
+          to: ${{ secrets.EMAIL_DESTINATARIO_TESTE }}
+          from: "Rechecagem STJ HC <${{ secrets.EMAIL_USUARIO }}>"
           attachments: dados_diarios/rechecagem_hc_tjgo_${{ steps.data.outputs.ontem_fmt }}.xlsx
