@@ -12,9 +12,9 @@ jobs:
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_BUCKET: ${{ secrets.SUPABASE_BUCKET }}
       SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
-      EMAIL_USER: ${{ secrets.EMAIL_USER }}
-      EMAIL_PASS: ${{ secrets.EMAIL_PASS }}
-      EMAIL_DEST: ${{ secrets.EMAIL_DEST }}
+      EMAIL_USER: ${{ secrets.EMAIL_USUARIO }}
+      EMAIL_PASS: ${{ secrets.EMAIL_SENHA }}
+      EMAIL_DEST: ${{ secrets.EMAIL_DESTINATARIO_TESTE }}
 
     steps:
       # Etapa para fazer o checkout do repositório
