@@ -70,22 +70,34 @@ def preparar_email_alerta_retroativos(df_retroativos: pd.DataFrame):
 
                 try:
                     from openpyxl import load_workbook
-                    from openpyxl.styles import PatternFill, Font, Alignment
+                    from openpyxl.styles import PatternFill, Font, Alignment, Border, Side
 
                     wb = load_workbook(excel_path)
                     ws = wb.active
 
-                    fill = PatternFill(start_color="1F4E78", end_color="1F4E78", fill_type="solid")
-                    font = Font(color="FFFFFF", bold=True)
+                    # Cabeçalho: cinza escuro com fonte branca
+                    header_fill = PatternFill(start_color="404040", end_color="404040", fill_type="solid")
+                    header_font = Font(color="FFFFFF", bold=True)
+                    header_alignment = Alignment(horizontal='center', vertical='center')
 
+                    # Corpo: alinhamento à esquerda
+                    cell_alignment = Alignment(horizontal='left', vertical='center')
+
+                    # Aplicar estilos ao cabeçalho
                     for cell in ws[1]:
-                        cell.fill = fill
-                        cell.font = font
-                        cell.alignment = Alignment(horizontal='center', vertical='center')
+                        cell.fill = header_fill
+                        cell.font = header_font
+                        cell.alignment = header_alignment
 
+                    # Aplicar alinhamento e ajustar largura das colunas
                     for column in ws.columns:
-                        max_length = max((len(str(cell.value)) for cell in column if cell.value), default=0)
-                        ws.column_dimensions[column[0].column_letter].width = max(10, min(max_length + 2, 50))
+                        max_length = 0
+                        for cell in column:
+                            cell.alignment = cell_alignment
+                            if cell.value:
+                                max_length = max(max_length, len(str(cell.value)))
+                        col_letter = column[0].column_letter
+                        ws.column_dimensions[col_letter].width = max(10, min(max_length + 2, 60))
 
                     wb.save(excel_path)
                 except Exception as e:
