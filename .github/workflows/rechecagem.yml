@@ -1,6 +1,3 @@
-# Correção do arquivo .github/workflows/rechecagem.yml
-
-```yaml
 name: Rechecagem Diária
 
 on:
@@ -133,4 +130,3 @@ jobs:
           from: "Rechecagem STJ HC <${{ secrets.EMAIL_USUARIO }}>"
           attachments: dados_diarios/rechecagem_hc_tjgo_${{ steps.data.outputs.ontem_fmt }}.xlsx
           content_type: text/html
-```
