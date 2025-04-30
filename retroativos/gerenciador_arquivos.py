@@ -14,8 +14,8 @@ SUPABASE_BUCKET = os.environ.get("SUPABASE_BUCKET")
 
 def obter_caminho_resultado_por_data(data_ref: date) -> str:
     """
-    Baixa o arquivo do Supabase para a data especificada e o converte para CSV.
-    Retorna o caminho do arquivo CSV temporário.
+    Baixa o arquivo Excel do Supabase para a data especificada.
+    Retorna o caminho do arquivo temporário.
     """
     # Verifica se as variáveis de ambiente estão disponíveis
     if not all([SUPABASE_URL, SUPABASE_KEY, SUPABASE_BUCKET]):
@@ -28,16 +28,12 @@ def obter_caminho_resultado_por_data(data_ref: date) -> str:
     
     # Formata a data para buscar o arquivo no Supabase
     data_fmt = data_ref.strftime("%d-%m-%Y")
-    data_iso = data_ref.strftime("%Y-%m-%d")
     
     # Nome do arquivo no Supabase
     nome_arquivo_supabase = f"hc_tjgo_{data_fmt}.xlsx"
     
     # Caminho onde será salvo temporariamente o arquivo Excel
     caminho_excel_temp = temp_dir / nome_arquivo_supabase
-    
-    # Caminho onde será salvo o CSV resultante
-    caminho_csv_temp = temp_dir / f"resultados_{data_iso}.csv"
     
     try:
         # URL para o arquivo no Supabase
@@ -55,17 +51,30 @@ def obter_caminho_resultado_por_data(data_ref: date) -> str:
                 f.write(response.content)
             
             logging.info(f"Arquivo {nome_arquivo_supabase} baixado com sucesso do Supabase")
-            
-            # Converte o Excel para CSV
-            df = pd.read_excel(caminho_excel_temp)
-            df.to_csv(caminho_csv_temp, index=False)
-            
-            logging.info(f"Arquivo Excel convertido para CSV: {caminho_csv_temp}")
-            return str(caminho_csv_temp)
+            return str(caminho_excel_temp)
         else:
             logging.warning(f"Arquivo {nome_arquivo_supabase} não encontrado no Supabase. Status: {response.status_code}")
     except Exception as e:
-        logging.error(f"Erro ao tentar baixar/converter o arquivo do Supabase: {str(e)}")
+        logging.error(f"Erro ao tentar baixar o arquivo do Supabase: {str(e)}")
     
     # Se chegou até aqui, não foi possível obter o arquivo
     return ""
+
+def salvar_csv_resultado(df: pd.DataFrame, data_ref: date) -> str:
+    """
+    Salva o DataFrame como Excel no diretório de dados diários.
+    Retorna o caminho do arquivo salvo.
+    """
+    data_fmt = data_ref.strftime("%d-%m-%Y")
+    nome_arquivo = f"hc_tjgo_{data_fmt}.xlsx"
+    caminho = Path("dados_diarios") / nome_arquivo
+    
+    # Garante que o diretório existe
+    os.makedirs(os.path.dirname(caminho), exist_ok=True)
+    
+    # Salva o DataFrame como Excel
+    df.to_excel(caminho, index=False)
+    
+    logging.info(f"Arquivo Excel de resultados salvo em: {caminho}")
+    
+    return str(caminho)
