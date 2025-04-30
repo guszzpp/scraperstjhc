@@ -107,10 +107,10 @@ jobs:
         with:
           server_address: smtp.gmail.com
           server_port: 587
-          username: ${{ secrets.EMAIL_USER }}
-          password: ${{ secrets.EMAIL_PASS }}
+          username: ${{ secrets.EMAIL_USUARIO }}
+          password: ${{ secrets.EMAIL_SENHA }}
           subject: "${{ steps.gerar_email.outputs.email_subject }}"
           body: "${{ env.email_body }}"
-          to: ${{ secrets.EMAIL_DEST }}
-          from: "Scraper STJ HC <${{ secrets.EMAIL_USER }}>"
+          to: ${{ secrets.EMAIL_DESTINATARIO_TESTE }}
+          from: "Scraper STJ HC <${{ secrets.EMAIL_USUARIO }}>"
           attachments: ${{ steps.gerar_email.outputs.attachment_name || '' }}
