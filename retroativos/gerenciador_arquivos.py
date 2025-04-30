@@ -78,3 +78,22 @@ def salvar_csv_resultado(df: pd.DataFrame, data_ref: date) -> str:
     logging.info(f"Arquivo Excel de resultados salvo em: {caminho}")
     
     return str(caminho)
+
+def obter_nome_arquivo_rechecagem(data_ref: date = None) -> str:
+    """
+    Obtém o nome do arquivo de rechecagem para a data especificada.
+    Se nenhuma data for fornecida, usa a data atual.
+    
+    Args:
+        data_ref: Data de referência para o arquivo (opcional)
+        
+    Returns:
+        Nome do arquivo de rechecagem no formato "rechecagem_hc_tjgo_DD-MM-YYYY.xlsx"
+    """
+    if data_ref is None:
+        data_ref = date.today()
+    
+    data_fmt = data_ref.strftime("%d-%m-%Y")
+    nome_arquivo = f"rechecagem_hc_tjgo_{data_fmt}.xlsx"
+    
+    return nome_arquivo
