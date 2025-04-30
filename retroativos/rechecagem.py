@@ -3,6 +3,7 @@ import sys
 import pandas as pd
 from datetime import datetime
 from pathlib import Path
+from email_detalhado import preparar_email_alerta_retroativos
 
 def comparar_arquivos(arquivo_anteontem, arquivo_ontem):
     """
@@ -135,6 +136,13 @@ def comparar_arquivos(arquivo_anteontem, arquivo_ontem):
                 chave=chave
             )
             
+        # Preparar e-mail
+        if tem_divergencia:
+            df_divergentes = pd.read_excel("dados_diarios/novos_processos.xlsx") if Path("dados_diarios/novos_processos.xlsx").exists() else pd.DataFrame()
+            preparar_email_alerta_retroativos(df_divergentes)
+        else:
+            preparar_email_alerta_retroativos(None)
+
         return tem_divergencia
         
     except Exception as e:

@@ -34,7 +34,7 @@ def preparar_email_alerta_retroativos(df_retroativos: pd.DataFrame):
                 f"<p><strong>🚨 ALERTA: Divergência na rechecagem - {anteontem.strftime('%d/%m/%Y')}</strong></p>"
                 f"<p>Foram detectados {num_hcs} Habeas Corpus com datas anteriores à rechecagem:</p>"
                 f"<table border='1' cellpadding='5' cellspacing='0' style='border-collapse: collapse; width: 100%; margin: auto;'>"
-                f"<tr style='background-color: #1F4E78; color: #FFFFFF;'>"
+                f"<tr style='background-color: #404040; color: #FFFFFF;'>"
                 f"<th>Número do Processo</th><th>Relator</th><th>Situação</th><th>Data de Autuação</th></tr>"
             )
 
@@ -68,44 +68,37 @@ def preparar_email_alerta_retroativos(df_retroativos: pd.DataFrame):
                 df_retroativos["Obs"] = "Processo detectado retroativamente"
                 df_retroativos.to_excel(excel_path, index=False, engine='openpyxl')
 
-                try:
-                    from openpyxl import load_workbook
-                    from openpyxl.styles import PatternFill, Font, Alignment, Border, Side
+                # Aplicar formatação visual ao Excel
+                from openpyxl import load_workbook
+                from openpyxl.styles import PatternFill, Font, Alignment
 
-                    wb = load_workbook(excel_path)
-                    ws = wb.active
+                wb = load_workbook(excel_path)
+                ws = wb.active
 
-                    # Cabeçalho: cinza escuro com fonte branca
-                    header_fill = PatternFill(start_color="404040", end_color="404040", fill_type="solid")
-                    header_font = Font(color="FFFFFF", bold=True)
-                    header_alignment = Alignment(horizontal='center', vertical='center')
+                # Estilo do cabeçalho
+                header_fill = PatternFill(start_color="404040", end_color="404040", fill_type="solid")
+                header_font = Font(color="FFFFFF", bold=True)
+                header_alignment = Alignment(horizontal='center', vertical='center')
 
-                    # Corpo: alinhamento à esquerda
-                    cell_alignment = Alignment(horizontal='left', vertical='center')
+                for cell in ws[1]:
+                    cell.fill = header_fill
+                    cell.font = header_font
+                    cell.alignment = header_alignment
 
-                    # Aplicar estilos ao cabeçalho
-                    for cell in ws[1]:
-                        cell.fill = header_fill
-                        cell.font = header_font
-                        cell.alignment = header_alignment
+                # Estilo das células e ajuste de largura
+                for column in ws.columns:
+                    max_length = max((len(str(cell.value)) for cell in column if cell.value), default=0)
+                    for cell in column:
+                        cell.alignment = Alignment(horizontal='left', vertical='center')
+                    ws.column_dimensions[column[0].column_letter].width = max(10, min(max_length + 2, 60))
 
-                    # Aplicar alinhamento e ajustar largura das colunas
-                    for column in ws.columns:
-                        max_length = 0
-                        for cell in column:
-                            cell.alignment = cell_alignment
-                            if cell.value:
-                                max_length = max(max_length, len(str(cell.value)))
-                        col_letter = column[0].column_letter
-                        ws.column_dimensions[col_letter].width = max(10, min(max_length + 2, 60))
+                wb.save(excel_path)
 
-                    wb.save(excel_path)
-                except Exception as e:
-                    logging.warning(f"Não foi possível aplicar formatação avançada: {e}")
             except Exception as e:
-                logging.error(f"Erro ao salvar Excel de retroativos: {e}")
+                logging.error(f"Erro ao salvar ou formatar Excel: {e}")
                 attachment = ""
 
+        # Gravar arquivos usados pelo envio
         Path("email_subject.txt").write_text(subject, encoding="utf-8")
         Path("email_body.txt").write_text(body, encoding="utf-8")
         Path("attachment.txt").write_text(attachment if attachment and os.path.exists(attachment) else "", encoding="utf-8")
@@ -147,16 +140,16 @@ def preparar_email_relatorio_diario(data_busca, caminho_arquivo=None, mensagem_s
         )
 
         if erros:
-            body += f"<li><strong>⚠️ Erros detectados:</strong></li><ul>"
+            body += "<p><strong>⚠️ Erros detectados:</strong></p><ul>"
             for erro in erros:
                 body += f"<li>{erro}</li>"
             body += "</ul>"
         elif mensagem_status:
-            body += f"<li><strong>Status:</strong> {mensagem_status}</li>"
+            body += f"<p><strong>Status:</strong> {mensagem_status}</p>"
         elif tem_anexo:
-            body += f"<li><strong>Status:</strong> HCs localizados – detalhes no anexo.</li>"
+            body += f"<p><strong>Status:</strong> HCs localizados – detalhes no anexo.</p>"
         else:
-            body += f"<li><strong>Status:</strong> Nenhum HC localizado.</li>"
+            body += f"<p><strong>Status:</strong> Nenhum HC localizado.</p>"
 
         body += (
             f"<br>"
