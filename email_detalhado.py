@@ -125,11 +125,13 @@ def preparar_email_relatorio_diario(data_busca, caminho_arquivo=None, mensagem_s
         body = (
             f"<p>Prezado(a),</p>"
             f"<p>Segue em anexo o relatório de Habeas Corpus (HCs) autuados no STJ com origem no TJGO, referente à data <strong>{data_busca}</strong>.</p>"
+            f"<br>"
             f"<p><strong>Resumo da execução:</strong></p>"
             f"<ul>"
             f"<li><strong>Data de busca:</strong> {data_busca}</li>"
             f"<li><strong>Data de execução:</strong> {hoje.strftime('%d/%m/%Y')}</li>"
             f"<li><strong>Origem:</strong> TJGO</li>"
+            f"</ul>"
         )
 
         if erros:
@@ -145,8 +147,9 @@ def preparar_email_relatorio_diario(data_busca, caminho_arquivo=None, mensagem_s
             body += f"<li><strong>Status:</strong> Nenhum HC localizado.</li>"
 
         body += (
-            f"</ul>"
-            f"<p><strong>Observação:</strong> Esta automação tem como objetivo auxiliar no acompanhamento processual, mas <strong>não substitui a conferência manual nos canais oficiais do STJ</strong>.</p>"
+            f"<br>"
+            f"<p><strong>Observação:</strong> Esta automação tem como objetivo auxiliar no acompanhamento processual, mas "
+            f"<strong>não substitui a conferência manual nos canais oficiais do STJ</strong>.</p>"
             f"<br>"
             f"<p style='color: #777; font-size: 12px;'>Este e-mail foi gerado automaticamente pelo sistema de monitoramento de HCs.</p>"
             f"<p style='color: #777; font-size: 12px;'>© {hoje.year} - Sistema Automatizado STJ/TJGO</p>"
