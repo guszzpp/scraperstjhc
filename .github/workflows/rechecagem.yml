@@ -1,0 +1,95 @@
+name: Rechecagem Diária
+
+on:
+  schedule:
+    - cron: '10 15 * * *' # Execução diária às 15:10 UTC
+  workflow_dispatch: # Permite execução manual
+
+jobs:
+  recheck:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v4
+
+      - name: 🐍 Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: 📦 Install dependencies
+        run: |
+          pip install -r requirements.txt
+
+      - name: 📁 Create directory for downloads
+        run: mkdir -p dados_diarios
+        
+      - name: 📅 Obter datas
+        id: data
+        run: |
+          ONTEM=$(date -d "yesterday" +"%d/%m/%Y")
+          ANTEONTEM=$(date -d "2 days ago" +"%d/%m/%Y")
+          ONTEM_FMT=$(date -d "yesterday" +"%d-%m-%Y")
+          ANTEONTEM_FMT=$(date -d "2 days ago" +"%d-%m-%Y")
+          echo "ontem=$ONTEM" >> $GITHUB_OUTPUT
+          echo "anteontem=$ANTEONTEM" >> $GITHUB_OUTPUT
+          echo "ontem_fmt=$ONTEM_FMT" >> $GITHUB_OUTPUT
+          echo "anteontem_fmt=$ANTEONTEM_FMT" >> $GITHUB_OUTPUT
+
+      - name: ⬇️ Download dos arquivos do Supabase
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          SUPABASE_BUCKET: ${{ secrets.SUPABASE_BUCKET }}
+        run: |
+          python supabase/supabase_download.py ${{ secrets.SUPABASE_URL }} ${{ secrets.SUPABASE_BUCKET }} hc_tjgo_${{ steps.data.outputs.anteontem_fmt }}.xlsx dados_diarios/hc_tjgo_${{ steps.data.outputs.anteontem_fmt }}.xlsx
+          python supabase/supabase_download.py ${{ secrets.SUPABASE_URL }} ${{ secrets.SUPABASE_BUCKET }} hc_tjgo_${{ steps.data.outputs.ontem_fmt }}.xlsx dados_diarios/hc_tjgo_${{ steps.data.outputs.ontem_fmt }}.xlsx
+
+      - name: 🔄 Executar script de rechecagem
+        id: rechecagem
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          SUPABASE_BUCKET: ${{ secrets.SUPABASE_BUCKET }}
+        run: |
+          python retroativos/rechecagem_melhorada.py "${{ steps.data.outputs.anteontem }}" "${{ steps.data.outputs.ontem }}"
+
+      - name: 📋 Criar arquivo de rechecagem
+        run: |
+          if [ -f "tem_divergencia.txt" ] && [ "$(cat tem_divergencia.txt)" == "true" ]; then
+            echo "Divergência detectada, criando arquivo de rechecagem"
+            cp dados_diarios/hc_tjgo_${{ steps.data.outputs.ontem_fmt }}.xlsx dados_diarios/rechecagem_hc_tjgo_${{ steps.data.outputs.ontem_fmt }}.xlsx
+          else
+            echo "Sem divergência, criando arquivo de rechecagem vazio"
+            python supabase/criar_xlsx_vazio.py rechecagem_hc_tjgo_${{ steps.data.outputs.ontem_fmt }}.xlsx
+          fi
+
+      - name: ☁️ Upload do arquivo de rechecagem para Supabase
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          SUPABASE_BUCKET: ${{ secrets.SUPABASE_BUCKET }}
+        run: |
+          python supabase/supabase_upload.py dados_diarios/rechecagem_hc_tjgo_${{ steps.data.outputs.ontem_fmt }}.xlsx rechecagem_hc_tjgo_${{ steps.data.outputs.ontem_fmt }}.xlsx
+
+      - name: 📧 Enviar e-mail de notificação
+        uses: dawidd6/action-send-mail@v3
+        if: fileExists('tem_divergencia.txt') && contains(readFile('tem_divergencia.txt'), 'true')
+        with:
+          server_address: smtp.gmail.com
+          server_port: 587
+          username: ${{ secrets.EMAIL_USER }}
+          password: ${{ secrets.EMAIL_PASS }}
+          subject: "🚨 ALERTA: Divergência detectada na rechecagem de HCs TJGO"
+          body: |
+            Prezado(a),
+
+            Foi detectada uma divergência entre os arquivos de HCs do STJ com origem no TJGO.
+            Isso significa que novos processos podem ter sido adicionados retroativamente.
+
+            Por favor, consulte o arquivo em anexo para mais detalhes.
+
+            Esta é uma mensagem automatizada.
+          to: ${{ secrets.EMAIL_DEST }}
+          from: "Rechecagem STJ HC <${{ secrets.EMAIL_USER }}>"
+          attachments: dados_diarios/rechecagem_hc_tjgo_${{ steps.data.outputs.ontem_fmt }}.xlsx

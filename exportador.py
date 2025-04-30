@@ -1,15 +1,14 @@
-# exportador.py
-
 import logging
 from openpyxl import Workbook
 from openpyxl.utils import get_column_letter
+from openpyxl.styles import PatternFill, Font, Alignment, Border, Side
 from pathlib import Path
+from datetime import datetime
 
 def exportar_resultados(resultados, data_inicial, data_final):
     """
-    Exporta os resultados extraídos para uma planilha .xlsx com formatação adequada.
+    Exporta os resultados extraídos para uma planilha .xlsx com formatação elegante.
     """
-
     if not resultados:
         logging.warning("⚠️ Nenhum dado a exportar. Nenhum arquivo será gerado.")
         return None
@@ -18,9 +17,35 @@ def exportar_resultados(resultados, data_inicial, data_final):
     ws = wb.active
     ws.title = "HC TJGO"
 
+    # Estilos
+    cabecalho_fill = PatternFill(start_color="1F4E78", end_color="1F4E78", fill_type="solid")
+    cabecalho_font = Font(name="Arial", color="FFFFFF", bold=True, size=11)
+    cabecalho_alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    
+    data_fill_par = PatternFill(start_color="F2F2F2", end_color="F2F2F2", fill_type="solid")
+    data_fill_impar = PatternFill(start_color="FFFFFF", end_color="FFFFFF", fill_type="solid")
+    
+    data_font = Font(name="Arial", size=10)
+    data_alignment = Alignment(horizontal="left", vertical="center", wrap_text=True)
+    
+    thin_border = Border(
+        left=Side(style="thin"),
+        right=Side(style="thin"),
+        top=Side(style="thin"),
+        bottom=Side(style="thin")
+    )
+
     # Cabeçalhos da planilha
     headers = ["Número CNJ", "Número do Processo", "Relator(a)", "Situação", "Data de Autuação"]
     ws.append(headers)
+
+    # Aplicar estilos aos cabeçalhos
+    for col_num, header in enumerate(headers, 1):
+        cell = ws.cell(row=1, column=col_num)
+        cell.fill = cabecalho_fill
+        cell.font = cabecalho_font
+        cell.alignment = cabecalho_alignment
+        cell.border = thin_border
 
     # Preenchimento das linhas
     registros_validos = 0
@@ -34,13 +59,25 @@ def exportar_resultados(resultados, data_inicial, data_final):
             continue
 
         try:
-            ws.append([
-                item.get("numero_cnj", ""),
-                item.get("numero_processo", ""),
-                item.get("relator", ""),
-                item.get("situacao", ""),
-                item.get("data_autuacao", "")
-            ])
+            row_num = registros_validos + 2  # +2 porque a linha 1 é o cabeçalho
+            
+            # Adicionar dados
+            ws.cell(row=row_num, column=1, value=item.get("numero_cnj", ""))
+            ws.cell(row=row_num, column=2, value=item.get("numero_processo", ""))
+            ws.cell(row=row_num, column=3, value=item.get("relator", ""))
+            ws.cell(row=row_num, column=4, value=item.get("situacao", ""))
+            ws.cell(row=row_num, column=5, value=item.get("data_autuacao", ""))
+            
+            # Aplicar estilos às células
+            fill = data_fill_par if registros_validos % 2 == 0 else data_fill_impar
+            
+            for col_num in range(1, 6):
+                cell = ws.cell(row=row_num, column=col_num)
+                cell.fill = fill
+                cell.font = data_font
+                cell.alignment = data_alignment
+                cell.border = thin_border
+                
             registros_validos += 1
         except Exception as e:
             logging.error(f"❌ Erro ao processar item na posição {i}: {e}")
@@ -52,7 +89,24 @@ def exportar_resultados(resultados, data_inicial, data_final):
     # Ajuste da largura das colunas
     for i, coluna in enumerate(ws.columns, 1):
         max_length = max(len(str(cell.value)) if cell.value else 0 for cell in coluna)
-        ws.column_dimensions[get_column_letter(i)].width = max(20, max_length + 2)
+        ws.column_dimensions[get_column_letter(i)].width = max(15, min(max_length + 2, 50))
+
+    # Adicionar rodapé com informações
+    row_rodape = registros_validos + 3
+    ws.cell(row=row_rodape, column=1, value="Informações da Exportação:")
+    ws.cell(row=row_rodape, column=1).font = Font(bold=True)
+    
+    ws.cell(row=row_rodape + 1, column=1, value="Data da Busca:")
+    if data_inicial == data_final:
+        ws.cell(row=row_rodape + 1, column=2, value=data_inicial)
+    else:
+        ws.cell(row=row_rodape + 1, column=2, value=f"{data_inicial} a {data_final}")
+    
+    ws.cell(row=row_rodape + 2, column=1, value="Total de Registros:")
+    ws.cell(row=row_rodape + 2, column=2, value=registros_validos)
+    
+    ws.cell(row=row_rodape + 3, column=1, value="Data da Exportação:")
+    ws.cell(row=row_rodape + 3, column=2, value=datetime.now().strftime("%d/%m/%Y %H:%M:%S"))
 
     # Define nome do arquivo
     def formatar(data):
@@ -63,8 +117,10 @@ def exportar_resultados(resultados, data_inicial, data_final):
     else:
         nome_arquivo = f"hc_tjgo_{formatar(data_inicial)}_a_{formatar(data_final)}.xlsx"
 
-    # Salva arquivo na pasta atual
-    caminho = Path(nome_arquivo)
+    # Salva arquivo na pasta dados_diarios
+    caminho = Path("dados_diarios") / nome_arquivo
+    Path("dados_diarios").mkdir(exist_ok=True)
+    
     try:
         wb.save(caminho)
         logging.info(f"📁 Resultado salvo em: {caminho.resolve()}")
