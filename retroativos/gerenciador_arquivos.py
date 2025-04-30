@@ -93,21 +93,29 @@ def salvar_csv_resultado(df: pd.DataFrame, data_ref) -> str:
     
     return str(caminho)
 
-def obter_nome_arquivo_rechecagem(data_ref: date = None) -> str:
+def obter_nome_arquivo_rechecagem(data_ref = None) -> str:
     """
     Obtém o nome do arquivo de rechecagem para a data especificada.
     Se nenhuma data for fornecida, usa a data atual.
     
     Args:
-        data_ref: Data de referência para o arquivo (opcional)
+        data_ref: Data de referência para o arquivo (opcional, pode ser string ou objeto date)
         
     Returns:
         Nome do arquivo de rechecagem no formato "rechecagem_hc_tjgo_DD-MM-YYYY.xlsx"
     """
     if data_ref is None:
-        data_ref = date.today()
+        data_fmt = date.today().strftime("%d-%m-%Y")
+    elif isinstance(data_ref, str):
+        # Se for uma string no formato DD/MM/YYYY, converter para DD-MM-YYYY
+        if '/' in data_ref:
+            data_fmt = data_ref.replace('/', '-')
+        else:
+            data_fmt = data_ref  # Assume que já está no formato correto
+    else:
+        # Se for um objeto date, usar strftime
+        data_fmt = data_ref.strftime("%d-%m-%Y")
     
-    data_fmt = data_ref.strftime("%d-%m-%Y")
     nome_arquivo = f"rechecagem_hc_tjgo_{data_fmt}.xlsx"
     
     return nome_arquivo
