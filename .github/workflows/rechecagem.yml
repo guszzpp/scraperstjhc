@@ -68,9 +68,25 @@ jobs:
         run: |
           python supabase/supabase_upload.py dados_diarios/rechecagem_hc_tjgo_${{ steps.data.outputs.ontem_fmt }}.xlsx rechecagem_hc_tjgo_${{ steps.data.outputs.ontem_fmt }}.xlsx
 
+      - name: Verificar se existe arquivo de divergência
+        id: check_divergencia
+        run: |
+          if [ -f "tem_divergencia.txt" ]; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Ler conteúdo do arquivo de divergência
+        id: read_divergencia
+        if: steps.check_divergencia.outputs.exists == 'true'
+        run: |
+          content=$(cat tem_divergencia.txt)
+          echo "content=$content" >> $GITHUB_OUTPUT
+
       - name: 📧 Enviar e-mail de notificação
         uses: dawidd6/action-send-mail@v3
-        if: fileExists('tem_divergencia.txt') && contains(readFile('tem_divergencia.txt'), 'true')
+        if: steps.check_divergencia.outputs.exists == 'true' && steps.read_divergencia.outputs.content == 'true'
         with:
           server_address: smtp.gmail.com
           server_port: 587
