@@ -61,7 +61,7 @@ jobs:
             cp dados_diarios/hc_tjgo_${{ steps.data.outputs.ontem_fmt }}.xlsx dados_diarios/rechecagem_hc_tjgo_${{ steps.data.outputs.ontem_fmt }}.xlsx
           else
             echo "Sem divergência, criando arquivo de rechecagem vazio"
-            python supabase/criar_xlsx_vazio.py rechecagem_hc_tjgo_${{ steps.data.outputs.ontem_fmt }}.xlsx
+            python supabase/criar_xlsx_vazio.py dados_diarios/rechecagem_hc_tjgo_${{ steps.data.outputs.ontem_fmt }}.xlsx
           fi
 
       - name: ☁️ Upload do arquivo de rechecagem para Supabase
@@ -94,21 +94,19 @@ jobs:
           password: ${{ secrets.EMAIL_SENHA }}
           subject: "🚨 ALERTA: Divergência detectada na rechecagem de HCs TJGO - ${{ steps.data.outputs.ontem }}"
           body: |
-            Prezado(a),
-
-            Foi detectada uma divergência entre os arquivos de HCs do STJ com origem no TJGO.
-            Isso significa que novos processos foram adicionados retroativamente.
-
-            O sistema identificou inserções tardias pelo STJ para o dia ${{ steps.data.outputs.anteontem }}.
-
-            Por favor, consulte o arquivo em anexo para mais detalhes.
-
-            Esta é uma mensagem automatizada.
-            
-            © 2025 - Sistema Automatizado de Monitoramento de HCs STJ/TJGO
+            <p><strong>Relatório de Rechecagem - ${{ steps.data.outputs.ontem }}</strong></p>
+            <p>Prezado(a),</p>
+            <p>Foi detectada uma <strong>divergência</strong> entre os arquivos de HCs do STJ com origem no TJGO.</p>
+            <p>Isso significa que novos processos foram adicionados retroativamente.</p>
+            <p>O sistema identificou inserções tardias pelo STJ para o dia ${{ steps.data.outputs.anteontem }}.</p>
+            <p>Por favor, consulte o arquivo em anexo para mais detalhes.</p>
+            <hr>
+            <p style='color: #777; font-size: 12px;'>Este e-mail foi gerado automaticamente pelo sistema de rechecagem. Em caso de dúvidas, entre em contato com o administrador do sistema.</p>
+            <p style='color: #777; font-size: 12px;'>© 2025 - Sistema Automatizado de Monitoramento de HCs STJ/TJGO</p>
           to: ${{ secrets.EMAIL_DESTINATARIO_TESTE }}
           from: "Rechecagem STJ HC <${{ secrets.EMAIL_USUARIO }}>"
           attachments: dados_diarios/rechecagem_hc_tjgo_${{ steps.data.outputs.ontem_fmt }}.xlsx
+          content_type: text/html
 
       - name: 📧 Enviar e-mail de notificação para casos sem divergência
         uses: dawidd6/action-send-mail@v3
@@ -120,17 +118,14 @@ jobs:
           password: ${{ secrets.EMAIL_SENHA }}
           subject: "ℹ️ Nenhum HC retroativo STJ/TJGO - ${{ steps.data.outputs.ontem }}"
           body: |
-            Prezado(a),
-
-            Relatório de Rechecagem - ${{ steps.data.outputs.ontem }}
-
-            Nenhum novo Habeas Corpus retroativo foi localizado no STJ com origem no TJGO na rechecagem realizada em ${{ steps.data.outputs.ontem }} para o dia ${{ steps.data.outputs.anteontem }}.
-
-            Esta rechecagem visa identificar inserções tardias pelo sistema do STJ. Nenhuma nova inserção desse tipo foi identificada.
-
-            Em caso de dúvidas, entre em contato com o administrador do sistema.
-
-            © 2025 - Sistema Automatizado de Monitoramento de HCs STJ/TJGO
+            <p><strong>Relatório de Rechecagem - ${{ steps.data.outputs.ontem }}</strong></p>
+            <p>Prezado(a),</p>
+            <p>Nenhum novo Habeas Corpus retroativo (autuado em data anterior, mas só detectado hoje) foi localizado no STJ com origem no TJGO, na rechecagem realizada em ${{ steps.data.outputs.ontem }} para o dia ${{ steps.data.outputs.anteontem }}.</p>
+            <p>Essa rechecagem visa identificar inserções tardias pelo sistema do STJ — e hoje, nenhuma nova inserção desse tipo foi identificada.</p>
+            <hr>
+            <p style='color: #777; font-size: 12px;'>Este e-mail foi gerado automaticamente pelo sistema de rechecagem. Em caso de dúvidas, entre em contato com o administrador do sistema.</p>
+            <p style='color: #777; font-size: 12px;'>© 2025 - Sistema Automatizado de Monitoramento de HCs STJ/TJGO</p>
           to: ${{ secrets.EMAIL_DESTINATARIO_TESTE }}
           from: "Rechecagem STJ HC <${{ secrets.EMAIL_USUARIO }}>"
           attachments: dados_diarios/rechecagem_hc_tjgo_${{ steps.data.outputs.ontem_fmt }}.xlsx
+          content_type: text/html
