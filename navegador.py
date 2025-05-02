@@ -7,54 +7,59 @@ from webdriver_manager.chrome import ChromeDriverManager
 import subprocess
 import logging
 import os
+import shutil
 
 def iniciar_navegador():
-    # Verificar o ambiente
     logging.info("Verificando ambiente para inicialização do Chrome...")
     
     try:
-        # Verificar se o Chrome está instalado
-        chrome_version = subprocess.check_output(['google-chrome', '--version'], stderr=subprocess.STDOUT).decode('utf-8').strip()
-        logging.info(f"Chrome instalado: {chrome_version}")
-    except (subprocess.CalledProcessError, FileNotFoundError) as e:
-        logging.error(f"Chrome não está instalado ou não pode ser executado: {str(e)}")
+        # procura o binário certo: primeiro google-chrome (Ubuntu/Actions), senão chrome.exe (Win)
+        chrome_cmd = (
+            shutil.which('google-chrome') or
+            shutil.which('chrome') or
+            shutil.which('chrome.exe')
+        )
+        if not chrome_cmd:
+            logging.error("Chrome não encontrado no PATH.")
+            raise Exception("Chrome não está instalado ou não pode ser executado")
+
+        chrome_version = subprocess.check_output([chrome_cmd, '--version'], stderr=subprocess.STDOUT)
+        logging.info(f"Chrome instalado: {chrome_version.decode().strip()!r}")
+
+    except (subprocess.CalledProcessError, FileNotFoundError, Exception) as e:
+        logging.error(f"Chrome não está instalado ou não pode ser executado: {e}")
         logging.info("Por favor, instale o Google Chrome antes de continuar.")
-        raise Exception("Chrome não está instalado ou não pode ser executado")
-    
+        raise
+
     options = Options()
-    options.add_argument("--headless=new")  # Modo headless
+    options.add_argument("--headless")
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
     options.add_argument("--start-maximized")
-    
-    # Adicionar mais argumentos para diagnóstico
-    options.add_argument("--disable-gpu")  # Desativar aceleração de GPU
-    options.add_argument("--disable-extensions")  # Desativar extensões
+    options.add_argument("--disable-gpu")
+    options.add_argument("--disable-extensions")
     
     try:
         service = Service(ChromeDriverManager().install())
         logging.info(f"ChromeDriver instalado em: {service.path}")
         
-        # Verificar permissões do ChromeDriver
         if os.path.exists(service.path):
-            is_executable = os.access(service.path, os.X_OK)
-            logging.info(f"ChromeDriver tem permissão de execução: {is_executable}")
-            if not is_executable:
-                os.chmod(service.path, 0o755)  # Dar permissão de execução
+            is_exec = os.access(service.path, os.X_OK)
+            logging.info(f"ChromeDriver executável: {is_exec}")
+            if not is_exec:
+                os.chmod(service.path, 0o755)
                 logging.info("Permissão de execução adicionada ao ChromeDriver")
         
-        driver = webdriver.Chrome(
-            service=service,
-            options=options
-        )
+        driver = webdriver.Chrome(service=service, options=options)
         logging.info("Navegador Chrome iniciado com sucesso!")
         return driver
+
     except Exception as e:
-        logging.error(f"Erro ao iniciar o Chrome: {str(e)}")
-        # Tentar identificar melhor o erro
+        logging.error(f"Erro ao iniciar o ChromeDriver ou abrir o navegador: {e}")
+        # Se quiser diagnosticar dependências no Linux:
         try:
-            ldd_output = subprocess.check_output(['ldd', service.path], stderr=subprocess.STDOUT).decode('utf-8')
-            logging.error(f"Dependências do ChromeDriver: {ldd_output}")
-        except:
+            ldd_out = subprocess.check_output(['ldd', service.path], stderr=subprocess.STDOUT).decode()
+            logging.error(f"Dependências do ChromeDriver:\n{ldd_out}")
+        except Exception:
             logging.error("Não foi possível verificar as dependências do ChromeDriver")
         raise

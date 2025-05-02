@@ -1,0 +1,32 @@
+# Arquivos ignorados pelo git
+# Bytecode e caches do Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Ambientes virtuais
+venv/
+.venv/
+
+# Dependências instaladas (se você não quiser versão-las)
+# /env/
+# /.venv/
+
+# Logs e arquivos temporários
+*.log
+*.tmp
+
+# Arquivos de configuração de IDEs/editors
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# Arquivos de sistema (macOS, Windows)
+.DS_Store
+Thumbs.db
+
+# Arquivos de credenciais / variáveis de ambiente
+.env
+*.env
+.secrets/

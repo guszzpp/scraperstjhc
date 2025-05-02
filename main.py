@@ -142,7 +142,10 @@ def main(data_referencia: str):
                         msg.attach(part)
 
                 with smtplib.SMTP("smtp.gmail.com", 587) as server:
-                    server.starttls()
+                    server.ehlo()           # identifica o cliente ao servidor
+                    server.starttls()       # sobe o canal para TLS
+                    server.ehlo()           # re-identifica já em TLS
+
                     server.login(remetente, senha)
                     server.sendmail(remetente, destinatarios, msg.as_string())
                     logging.info("📨 E-mail enviado com sucesso.")
