@@ -138,7 +138,7 @@ jobs:
         run: |
           python supabase/supabase_download.py ${{ secrets.SUPABASE_URL }} ${{ secrets.SUPABASE_BUCKET }} hc_tjgo_${{ steps.data_recheck.outputs.anteontem_fmt }}.xlsx dados_diarios/hc_tjgo_${{ steps.data_recheck.outputs.anteontem_fmt }}.xlsx
           
-      - name: Debug: listar arquivos em dados_diarios
+      - name: Debug listar arquivos em dados_diarios
         run: |
           echo "Conteúdo de dados_diarios:"
           ls -l dados_diarios
