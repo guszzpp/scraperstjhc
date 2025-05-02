@@ -144,8 +144,8 @@ jobs:
           ls -l dados_diarios
           
       - name: 🔄 Executar rechecagem
-        run: python retroativos/rechecagem.py "${{ steps.data_recheck.outputs.anteontem }}" "${{ steps.data_recheck.outputs.ontem }}"
-
+        run: python retroativos/rechecagem.py "${{ steps.data_recheck.outputs.anteontem }}" "${{ steps.data_recheck.outputs.anteontem }}"
+        
       - name: 📋 Criar arquivo de rechecagem
         run: |
           if [ -f tem_divergencia.txt ] && [ "$(cat tem_divergencia.txt)" = "true" ]; then
