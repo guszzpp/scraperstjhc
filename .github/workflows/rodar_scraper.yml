@@ -101,7 +101,6 @@ jobs:
           to: ${{ secrets.EMAIL_DESTINATARIO_TESTE }}
           from: "Checagem STJ HC <${{ secrets.EMAIL_USUARIO }}>"
           attachments: ${{ steps.gerar_email.outputs.attachment_name || '' }}
-          content_type: text/html
 
   rechecagem:
     name: Rechecagem Retroativa
@@ -126,20 +125,20 @@ jobs:
       - name: 📅 Obter ontem e anteontem
         id: data_recheck
         run: |
-          ONTEM=$(date -d "yesterday" +"%d/%m/%Y")
           ANTEONTEM=$(date -d "2 days ago" +"%d/%m/%Y")
-          ONTEM_FMT=$(date -d "yesterday" +"%d-%m-%Y")
           ANTEONTEM_FMT=$(date -d "2 days ago" +"%d-%m-%Y")
-          echo "ontem=$ONTEM" >> $GITHUB_OUTPUT
           echo "anteontem=$ANTEONTEM" >> $GITHUB_OUTPUT
-          echo "ontem_fmt=$ONTEM_FMT" >> $GITHUB_OUTPUT
           echo "anteontem_fmt=$ANTEONTEM_FMT" >> $GITHUB_OUTPUT
 
-      - name: ⬇️ Download antecedente e atual
+      - name: ⬇️ Download antecedente
         run: |
           python supabase/supabase_download.py ${{ secrets.SUPABASE_URL }} ${{ secrets.SUPABASE_BUCKET }} hc_tjgo_${{ steps.data_recheck.outputs.anteontem_fmt }}.xlsx dados_diarios/hc_tjgo_${{ steps.data_recheck.outputs.anteontem_fmt }}.xlsx
-          python supabase/supabase_download.py ${{ secrets.SUPABASE_URL }} ${{ secrets.SUPABASE_BUCKET }} hc_tjgo_${{ steps.data_recheck.outputs.ontem_fmt }}.xlsx dados_diarios/hc_tjgo_${{ steps.data_recheck.outputs.ontem_fmt }}.xlsx
-
+          
+      - name: Debug: listar arquivos em dados_diarios
+        run: |
+          echo "Conteúdo de dados_diarios:"
+          ls -l dados_diarios
+          
       - name: 🔄 Executar rechecagem
         run: python retroativos/rechecagem.py "${{ steps.data_recheck.outputs.anteontem }}" "${{ steps.data_recheck.outputs.ontem }}"
 
@@ -178,7 +177,6 @@ jobs:
           to: ${{ secrets.EMAIL_DESTINATARIO_TESTE }}
           from: "Rechecagem STJ HC <${{ secrets.EMAIL_USUARIO }}>"
           attachments: dados_diarios/rechecagem_hc_tjgo_${{ steps.data_recheck.outputs.ontem_fmt }}.xlsx
-          content_type: text/html
 
       - name: 📧 E-mail sem divergência
         if: steps.check_div.outputs.has_div != 'true'
@@ -194,4 +192,4 @@ jobs:
           to: ${{ secrets.EMAIL_DESTINATARIO_TESTE }}
           from: "Rechecagem STJ HC <${{ secrets.EMAIL_USUARIO }}>"
           attachments: dados_diarios/rechecagem_hc_tjgo_${{ steps.data_recheck.outputs.ontem_fmt }}.xlsx
-          content_type: text/html
+
