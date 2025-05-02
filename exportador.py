@@ -30,10 +30,8 @@ def exportar_resultados(resultados, data_inicial, data_final):
         bottom=Side(style="thin")
     )
     if "header_style" not in wb.named_styles:
-    wb.add_named_style(header_style)
+        wb.add_named_style(header_style)
 
-    wb.add_named_style(header_style)
-    
     # Estilo para linhas pares
     even_row_style = NamedStyle(name='even_row_style')
     even_row_style.font = Font(name="Arial", size=10)
