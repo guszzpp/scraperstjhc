@@ -28,13 +28,13 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      
+
       - name: 📦 Instalar dependências
         run: pip install -r requirements.txt
-      
+
       - name: 📁 Criar pasta dados_diarios
         run: mkdir -p dados_diarios
-      
+
       - name: 🗂️ Restaurar cache de dados diários
         uses: actions/cache@v3
         with:
@@ -42,7 +42,7 @@ jobs:
           key: dados-diarios-${{ github.sha }}
           restore-keys: |
             dados-diarios-
-      
+
       - name: 📅 Obter data de ontem
         id: data_scrape
         run: |
@@ -50,13 +50,13 @@ jobs:
           ONTEM_FMT=$(date -d "yesterday" +"%d-%m-%Y")
           echo "ontem=$ONTEM" >> $GITHUB_OUTPUT
           echo "ontem_fmt=$ONTEM_FMT" >> $GITHUB_OUTPUT
-          
+
       - name: 🔍 Executar script principal
         run: python main.py "${{ steps.data_scrape.outputs.ontem }}"
-          
+
       - name: 🔎 Verificar arquivo gerado
         run: ls -l dados_diarios
-          
+
       - name: ☁️ Upload condicional para Supabase
         run: |
           ARQ=dados_diarios/hc_tjgo_${{ steps.data_scrape.outputs.ontem_fmt }}.xlsx
@@ -65,7 +65,7 @@ jobs:
           else
             echo "⏭️ Arquivo não encontrado; pulando upload."
           fi
-          
+
       - name: 📧 Gerar conteúdo do email
         id: gerar_email
         run: |
@@ -75,12 +75,14 @@ jobs:
           else
             echo "email_subject=Resultados da checagem de HCs STJ/TJGO - ${{ steps.data_scrape.outputs.ontem }}" >> $GITHUB_OUTPUT
           fi
-          # Body
+
+          # Body (mantém quebras de linha)
           if [ -f "email_body.txt" ]; then
-            echo "email_body=$(<email_body.txt)" >> $GITHUB_OUTPUT
+            printf "email_body<<EOF\n%s\nEOF\n" "$(cat email_body.txt)" >> $GITHUB_OUTPUT
           else
             echo "email_body=Execução concluída em ${{ steps.data_scrape.outputs.ontem }}. Nenhuma notificação especial gerada." >> $GITHUB_OUTPUT
           fi
+
           # Attachment
           if [ -f "attachment.txt" ]; then
             echo "attachment_name=$(<attachment.txt)" >> $GITHUB_OUTPUT
@@ -98,6 +100,7 @@ jobs:
           to: ${{ secrets.EMAIL_DESTINATARIO_TESTE }}
           from: "Checagem STJ HC <${{ secrets.EMAIL_USUARIO }}>"
           attachments: ${{ steps.gerar_email.outputs.attachment_name || '' }}
+          content_type: text/html
 
   rechecagem:
     name: Rechecagem Retroativa
@@ -112,13 +115,13 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      
+
       - name: 📦 Instalar dependências
         run: pip install -r requirements.txt
 
       - name: 📁 Criar pasta dados_diarios
         run: mkdir -p dados_diarios
-        
+
       - name: 📅 Obter ontem e anteontem
         id: data_recheck
         run: |
@@ -169,7 +172,7 @@ jobs:
           username: ${{ secrets.EMAIL_USUARIO }}
           password: ${{ secrets.EMAIL_SENHA }}
           subject: "🚨 Divergência na rechecagem - ${{ steps.data_recheck.outputs.ontem }}"
-          body: |
+          html_body: |
             <!-- seu HTML de alerta -->
           to: ${{ secrets.EMAIL_DESTINATARIO_TESTE }}
           from: "Rechecagem STJ HC <${{ secrets.EMAIL_USUARIO }}>"
@@ -185,7 +188,7 @@ jobs:
           username: ${{ secrets.EMAIL_USUARIO }}
           password: ${{ secrets.EMAIL_SENHA }}
           subject: "ℹ️ Sem divergências na rechecagem - ${{ steps.data_recheck.outputs.ontem }}"
-          body: |
+          html_body: |
             <!-- seu HTML padrão de “sem divergência” -->
           to: ${{ secrets.EMAIL_DESTINATARIO_TESTE }}
           from: "Rechecagem STJ HC <${{ secrets.EMAIL_USUARIO }}>"
