@@ -49,3 +49,9 @@ def download_from_supabase(supabase_url, bucket_name, file_name, destination_pat
         print(f"Headers enviados (exceto Auth): {{'apikey': '***'}}")
         print(f"Resposta do servidor: {response.text}")
         raise Exception(f"Falha ao baixar arquivo {file_name}: {response.status_code}, {response.text}")
+
+if __name__ == "__main__":
+    if len(sys.argv) != 5:
+        print("Uso: python supabase_download.py <supabase_url> <bucket_name> <file_name> <destination_path>")
+        sys.exit(1)
+    download_from_supabase(sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4])
