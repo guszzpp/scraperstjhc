@@ -1,21 +1,25 @@
+# .github/workflows/pipeline_stjhc.yml
+
 name: Pipeline HCs STJ/TJGO
 
 on:
   schedule:
-    - cron: '0 15 * * *'    # todo dia às 15:00 UTC (12:00 BRT)
-  workflow_dispatch:       # permite disparo manual
+    - cron: '0 15 * * *'    # Executa diariamente às 15:00 UTC
+  workflow_dispatch:       # Permite disparo manual
+
+env:
+  SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+  SUPABASE_BUCKET: ${{ secrets.SUPABASE_BUCKET }}
+  SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+  EMAIL_USER: ${{ secrets.EMAIL_USUARIO }}
+  EMAIL_PASS: ${{ secrets.EMAIL_SENHA }}
+  EMAIL_DEST: ${{ secrets.EMAIL_DESTINATARIO_TESTE }}
 
 jobs:
-  scrape:
+  run:
     name: Scraper Diário
     runs-on: ubuntu-latest
-    env:
-      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-      SUPABASE_BUCKET: ${{ secrets.SUPABASE_BUCKET }}
-      SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
-      EMAIL_USER: ${{ secrets.EMAIL_USUARIO }}
-      EMAIL_PASS: ${{ secrets.EMAIL_SENHA }}
-      EMAIL_DEST: ${{ secrets.EMAIL_DESTINATARIO_TESTE }}
+
     steps:
       - name: 📥 Checkout do repositório
         uses: actions/checkout@v4
@@ -24,64 +28,62 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-
+      
       - name: 📦 Instalar dependências
         run: pip install -r requirements.txt
-
+      
       - name: 📁 Criar pasta dados_diarios
         run: mkdir -p dados_diarios
-
-      - name: 🗂️ Restaurar cache de dados_diarios
+      
+      - name: 🗂️ Restaurar cache de dados diários
         uses: actions/cache@v3
         with:
           path: dados_diarios
           key: dados-diarios-${{ github.sha }}
-          restore-keys: dados-diarios-
-
-      - name: 📅 Calcular data de ontem
-        id: data
+          restore-keys: |
+            dados-diarios-
+      
+      - name: 📅 Obter data de ontem
+        id: data_scrape
         run: |
           ONTEM=$(date -d "yesterday" +"%d/%m/%Y")
           ONTEM_FMT=$(date -d "yesterday" +"%d-%m-%Y")
           echo "ontem=$ONTEM" >> $GITHUB_OUTPUT
           echo "ontem_fmt=$ONTEM_FMT" >> $GITHUB_OUTPUT
-
-      - name: 🔍 Executar scraper principal
-        run: python main.py "${{ steps.data.outputs.ontem }}"
-
-      - name: 🔎 Listar arquivos gerados
+          
+      - name: 🔍 Executar script principal
+        run: python main.py "${{ steps.data_scrape.outputs.ontem }}"
+          
+      - name: 🔎 Verificar arquivo gerado
         run: ls -l dados_diarios
-
+          
       - name: ☁️ Upload condicional para Supabase
         run: |
-          ARQ=dados_diarios/hc_tjgo_${{ steps.data.outputs.ontem_fmt }}.xlsx
+          ARQ=dados_diarios/hc_tjgo_${{ steps.data_scrape.outputs.ontem_fmt }}.xlsx
           if [[ -f "$ARQ" ]]; then
-            echo "📤 Enviando $ARQ"
-            python supabase/supabase_upload.py "$ARQ" "hc_tjgo_${{ steps.data.outputs.ontem_fmt }}.xlsx"
+            python supabase/supabase_upload.py "$ARQ" "hc_tjgo_${{ steps.data_scrape.outputs.ontem_fmt }}.xlsx"
           else
-            echo "⏭️ Arquivo $ARQ não encontrado; pulando upload."
+            echo "⏭️ Arquivo não encontrado; pulando upload."
           fi
-
-      - name: 📧 Gerar conteúdo do e-mail de status
+          
+      - name: 📧 Gerar conteúdo do email
         id: gerar_email
         run: |
           # Subject
-          if [[ -f email_subject.txt ]]; then
+          if [ -f "email_subject.txt" ]; then
             echo "email_subject=$(<email_subject.txt)" >> $GITHUB_OUTPUT
           else
-            echo "email_subject=Resultados da checagem de HCs STJ/TJGO - ${{ steps.data.outputs.ontem }}" >> $GITHUB_OUTPUT
+            echo "email_subject=Resultados da checagem de HCs STJ/TJGO - ${{ steps.data_scrape.outputs.ontem }}" >> $GITHUB_OUTPUT
           fi
           # Body
-          if [[ -f email_body.txt ]]; then
-            cp email_body.txt email_body_content.txt
+          if [ -f "email_body.txt" ]; then
+            echo "email_body=$(<email_body.txt)" >> $GITHUB_OUTPUT
           else
-            echo "Execução concluída em ${{ steps.data.outputs.ontem }}. Nenhuma notificação especial gerada." > email_body_content.txt
+            echo "email_body=Execução concluída em ${{ steps.data_scrape.outputs.ontem }}. Nenhuma notificação especial gerada." >> $GITHUB_OUTPUT
           fi
-          echo "email_body=file://email_body_content.txt" >> $GITHUB_ENV
           # Attachment
-          ATT="dados_diarios/hc_tjgo_${{ steps.data.outputs.ontem_fmt }}.xlsx"
-          if [[ -f "$ATT" ]]; then
-            echo "attachment_name=$ATT" >> $GITHUB_OUTPUT
+          if [ -f "attachment.txt" ]; then
+            echo "attachment_name=$(<attachment.txt)" >> $GITHUB_OUTPUT
           fi
 
       - name: 📤 Enviar e-mail de status
@@ -92,21 +94,16 @@ jobs:
           username: ${{ secrets.EMAIL_USUARIO }}
           password: ${{ secrets.EMAIL_SENHA }}
           subject: "${{ steps.gerar_email.outputs.email_subject }}"
-          html_body: "${{ env.email_body }}"
+          html_body: "${{ steps.gerar_email.outputs.email_body }}"
           to: ${{ secrets.EMAIL_DESTINATARIO_TESTE }}
           from: "Checagem STJ HC <${{ secrets.EMAIL_USUARIO }}>"
+          attachments: ${{ steps.gerar_email.outputs.attachment_name || '' }}
 
-  recheck:
+  rechecagem:
     name: Rechecagem Retroativa
-    needs: scrape
+    needs: run
     runs-on: ubuntu-latest
-    env:
-      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-      SUPABASE_BUCKET: ${{ secrets.SUPABASE_BUCKET }}
-      SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
-      EMAIL_USER: ${{ secrets.EMAIL_USUARIO }}
-      EMAIL_PASS: ${{ secrets.EMAIL_SENHA }}
-      EMAIL_DEST: ${{ secrets.EMAIL_DESTINATARIO_TESTE }}
+
     steps:
       - name: 📥 Checkout do repositório
         uses: actions/checkout@v4
@@ -115,15 +112,15 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-
+      
       - name: 📦 Instalar dependências
         run: pip install -r requirements.txt
 
       - name: 📁 Criar pasta dados_diarios
         run: mkdir -p dados_diarios
-
-      - name: 📅 Calcular ontem e anteontem
-        id: dates
+        
+      - name: 📅 Obter ontem e anteontem
+        id: data_recheck
         run: |
           ONTEM=$(date -d "yesterday" +"%d/%m/%Y")
           ANTEONTEM=$(date -d "2 days ago" +"%d/%m/%Y")
@@ -134,74 +131,63 @@ jobs:
           echo "ontem_fmt=$ONTEM_FMT" >> $GITHUB_OUTPUT
           echo "anteontem_fmt=$ANTEONTEM_FMT" >> $GITHUB_OUTPUT
 
-      - name: ⬇️ Baixar arquivos de anteontem e ontem
+      - name: ⬇️ Download antecedente e atual
         run: |
-          python supabase/supabase_download.py \
-            ${{ secrets.SUPABASE_URL }} \
-            ${{ secrets.SUPABASE_BUCKET }} \
-            hc_tjgo_${{ steps.dates.outputs.anteontem_fmt }}.xlsx \
-            dados_diarios/hc_tjgo_${{ steps.dates.outputs.anteontem_fmt }}.xlsx
-          python supabase/supabase_download.py \
-            ${{ secrets.SUPABASE_URL }} \
-            ${{ secrets.SUPABASE_BUCKET }} \
-            hc_tjgo_${{ steps.dates.outputs.ontem_fmt }}.xlsx \
-            dados_diarios/hc_tjgo_${{ steps.dates.outputs.ontem_fmt }}.xlsx
+          python supabase/supabase_download.py ${{ secrets.SUPABASE_URL }} ${{ secrets.SUPABASE_BUCKET }} hc_tjgo_${{ steps.data_recheck.outputs.anteontem_fmt }}.xlsx dados_diarios/hc_tjgo_${{ steps.data_recheck.outputs.anteontem_fmt }}.xlsx
+          python supabase/supabase_download.py ${{ secrets.SUPABASE_URL }} ${{ secrets.SUPABASE_BUCKET }} hc_tjgo_${{ steps.data_recheck.outputs.ontem_fmt }}.xlsx dados_diarios/hc_tjgo_${{ steps.data_recheck.outputs.ontem_fmt }}.xlsx
 
       - name: 🔄 Executar rechecagem
-        run: |
-          python retroativos/rechecagem_melhorada.py \
-            "${{ steps.dates.outputs.anteontem }}" \
-            "${{ steps.dates.outputs.ontem }}"
+        run: python retroativos/rechecagem_melhorada.py "${{ steps.data_recheck.outputs.anteontem }}" "${{ steps.data_recheck.outputs.ontem }}"
 
-      - name: 📋 Gerar XLSX de rechecagem
+      - name: 📋 Criar arquivo de rechecagem
         run: |
-          if [[ -f tem_divergencia.txt ]] && [[ "$(cat tem_divergencia.txt)" == "true" ]]; then
-            cp dados_diarios/hc_tjgo_${{ steps.dates.outputs.ontem_fmt }}.xlsx \
-               dados_diarios/rechecagem_hc_tjgo_${{ steps.dates.outputs.ontem_fmt }}.xlsx
+          if [ -f tem_divergencia.txt ] && [ "$(cat tem_divergencia.txt)" = "true" ]; then
+            cp dados_diarios/hc_tjgo_${{ steps.data_recheck.outputs.ontem_fmt }}.xlsx dados_diarios/rechecagem_hc_tjgo_${{ steps.data_recheck.outputs.ontem_fmt }}.xlsx
           else
-            python supabase/criar_xlsx_vazio.py \
-              dados_diarios/rechecagem_hc_tjgo_${{ steps.dates.outputs.ontem_fmt }}.xlsx
+            python supabase/criar_xlsx_vazio.py dados_diarios/rechecagem_hc_tjgo_${{ steps.data_recheck.outputs.ontem_fmt }}.xlsx
           fi
 
-      - name: ☁️ Upload de rechecagem ao Supabase
+      - name: ☁️ Upload de rechecagem
         run: |
-          python supabase/supabase_upload.py \
-            dados_diarios/rechecagem_hc_tjgo_${{ steps.dates.outputs.ontem_fmt }}.xlsx \
-            rechecagem_hc_tjgo_${{ steps.dates.outputs.ontem_fmt }}.xlsx
+          python supabase/supabase_upload.py dados_diarios/rechecagem_hc_tjgo_${{ steps.data_recheck.outputs.ontem_fmt }}.xlsx rechecagem_hc_tjgo_${{ steps.data_recheck.outputs.ontem_fmt }}.xlsx
 
-      - name: 📧 Enviar e-mail de divergência
+      - name: Verificar divergência
+        id: check_div
+        run: |
+          if [ -f tem_divergencia.txt ] && [ "$(cat tem_divergencia.txt)" = "true" ]; then
+            echo "has_div=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_div=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: 📧 E-mail de divergência
+        if: steps.check_div.outputs.has_div == 'true'
         uses: dawidd6/action-send-mail@v3
-        if: |
-          files.exists('tem_divergencia.txt') && (steps.dates.outputs.anteontem != '')
         with:
           server_address: smtp.gmail.com
           server_port: 587
           username: ${{ secrets.EMAIL_USUARIO }}
           password: ${{ secrets.EMAIL_SENHA }}
-          subject: "🚨 Divergência na rechecagem STJ/TJGO - ${{ steps.dates.outputs.ontem }}"
+          subject: "🚨 Divergência na rechecagem - ${{ steps.data_recheck.outputs.ontem }}"
           body: |
-            <p><strong>Relatório de Rechecagem - ${{ steps.dates.outputs.ontem }}</strong></p>
-            <p>Foi detectada uma <strong>divergência</strong> entre os arquivos de HCs do STJ (origem TJGO).</p>
-            <p>Verifique o XLSX em anexo para detalhes.</p>
+            <!-- seu HTML de alerta -->
           to: ${{ secrets.EMAIL_DESTINATARIO_TESTE }}
           from: "Rechecagem STJ HC <${{ secrets.EMAIL_USUARIO }}>"
-          attachments: dados_diarios/rechecagem_hc_tjgo_${{ steps.dates.outputs.ontem_fmt }}.xlsx
+          attachments: dados_diarios/rechecagem_hc_tjgo_${{ steps.data_recheck.outputs.ontem_fmt }}.xlsx
           content_type: text/html
 
-      - name: 📧 Enviar e-mail sem divergência
+      - name: 📧 E-mail sem divergência
+        if: steps.check_div.outputs.has_div != 'true'
         uses: dawidd6/action-send-mail@v3
-        if: |
-          !files.exists('tem_divergencia.txt') || (cat tem_divergencia.txt) != 'true'
         with:
           server_address: smtp.gmail.com
           server_port: 587
           username: ${{ secrets.EMAIL_USUARIO }}
           password: ${{ secrets.EMAIL_SENHA }}
-          subject: "ℹ️ Sem divergências na rechecagem STJ/TJGO - ${{ steps.dates.outputs.ontem }}"
+          subject: "ℹ️ Sem divergências na rechecagem - ${{ steps.data_recheck.outputs.ontem }}"
           body: |
-            <p><strong>Relatório de Rechecagem - ${{ steps.dates.outputs.ontem }}</strong></p>
-            <p>Nenhuma divergência foi encontrada na rechecagem.</p>
+            <!-- seu HTML padrão de “sem divergência” -->
           to: ${{ secrets.EMAIL_DESTINATARIO_TESTE }}
           from: "Rechecagem STJ HC <${{ secrets.EMAIL_USUARIO }}>"
-          attachments: dados_diarios/rechecagem_hc_tjgo_${{ steps.dates.outputs.ontem_fmt }}.xlsx
+          attachments: dados_diarios/rechecagem_hc_tjgo_${{ steps.data_recheck.outputs.ontem_fmt }}.xlsx
           content_type: text/html
