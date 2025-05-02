@@ -139,7 +139,7 @@ def preparar_email_relatorio_diario(
 
                 Tivemos erros na execução para {data_busca}:
 
-                {"".join(f"- {e}\n" for e in erros)}
+                {"\n".join(f"- {e}" for e in erros)}
 
                 Atenciosamente,
                 Sistema automatizado
