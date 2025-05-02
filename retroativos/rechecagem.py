@@ -9,8 +9,6 @@ import pandas as pd
 from datetime import datetime
 from pathlib import Path
 
-from email_detalhado import preparar_email_alerta_retroativos
-
 def comparar_arquivos(arquivo_anteontem, arquivo_ontem):
     """
     Compara dois arquivos Excel de HCs e identifica divergências.
