@@ -104,7 +104,7 @@ jobs:
           username: ${{ secrets.EMAIL_USUARIO }}
           password: ${{ secrets.EMAIL_SENHA }}
           subject: "${{ steps.gerar_email.outputs.email_subject }}"
-          body: "${{ env.email_body }}"
+          html_body: "${{ env.email_body }}"
           to: ${{ secrets.EMAIL_DESTINATARIO_TESTE }}
           from: "Checagem STJ HC <${{ secrets.EMAIL_USUARIO }}>"
           attachments: ${{ steps.gerar_email.outputs.attachment_name || '' }}
