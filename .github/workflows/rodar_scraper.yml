@@ -193,3 +193,4 @@ jobs:
           from: "Rechecagem STJ HC <${{ secrets.EMAIL_USUARIO }}>"
           attachments: dados_diarios/rechecagem_hc_tjgo_${{ steps.data_recheck.outputs.ontem_fmt }}.xlsx
 
+        
