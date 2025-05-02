@@ -134,7 +134,7 @@ def preparar_email_relatorio_diario(
 
         if erros:
             subject = f"⚠️ Alerta: Erros na checagem de HCs STJ/TJGO - {data_busca}"
-            body = dedent(f"""\
+            body = dedent(f"""
                 Prezado(a),
 
                 Tivemos erros na execução para {data_busca}:
@@ -147,7 +147,7 @@ def preparar_email_relatorio_diario(
 
         elif tem_anexo:
             subject = f"✅ Resultados da checagem de HCs STJ/TJGO - {data_busca}"
-            body = dedent(f"""\
+            body = dedent(f"""
                 Prezado(a),
 
                 Segue em anexo o relatório de Habeas Corpus (HCs) autuados no STJ,
@@ -167,7 +167,7 @@ def preparar_email_relatorio_diario(
 
         else:
             subject = f"ℹ️ Nenhum HC encontrado na checagem STJ/TJGO - {data_busca}"
-            body = dedent(f"""\
+            body = dedent(f"""
                 Prezado(a),
 
                 Nenhum Habeas Corpus foi encontrado no STJ com origem no TJGO
