@@ -32,9 +32,13 @@ def download_from_supabase(supabase_url, bucket_name, file_name, destination_pat
         try:
             # Garante que o diretório de destino existe
             os.makedirs(os.path.dirname(destination_path), exist_ok=True)
+            print(f"[DEBUG] Vai salvar arquivo em: {destination_path}")
             with open(destination_path, 'wb') as f:
                 for chunk in response.iter_content(chunk_size=8192):
                     f.write(chunk)
+            exists = os.path.exists(destination_path)
+            size = os.path.getsize(destination_path) if exists else 0
+            print(f"[DEBUG] Gravação concluída: exists={exists}, size={size} bytes")
             print(f"Arquivo '{file_name}' baixado com sucesso para '{destination_path}'.")
         except Exception as e:
              raise Exception(f"Erro ao salvar o arquivo '{destination_path}': {e}")

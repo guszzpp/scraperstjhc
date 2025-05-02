@@ -62,6 +62,7 @@ jobs:
           ARQ=dados_diarios/hc_tjgo_${{ steps.data_scrape.outputs.ontem_fmt }}.xlsx
           if [[ -f "$ARQ" ]]; then
             python supabase/supabase_upload.py "$ARQ" "hc_tjgo_${{ steps.data_scrape.outputs.ontem_fmt }}.xlsx"
+            - run: ls -l dados_diarios
           else
             echo "⏭️ Arquivo não encontrado; pulando upload."
           fi
