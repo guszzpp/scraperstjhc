@@ -21,8 +21,8 @@ def enviar_email(assunto, corpo_html, anexo=None):
     msg["From"] = EMAIL_USER
     msg["To"] = DESTINATARIO
     msg.set_content("Este e-mail requer um cliente compatível com HTML.")
-    msg.add_alternative(corpo_html, subtype='html')
-
+    body_formatado = corpo_html.replace("\n", "<br>")
+    msg.add_alternative(body_formatado, subtype='html')
     if anexo and os.path.exists(anexo):
         with open(anexo, "rb") as f:
             part = MIMEApplication(f.read(), Name=os.path.basename(anexo))
@@ -109,7 +109,7 @@ def preparar_email_relatorio_diario(
 
         # --- gravação dos arquivos que serão lidos pelo main.py ---
         Path("email_subject.txt").write_text(subject, encoding="utf-8")
-        Path("email_body.txt").write_text(body, encoding="utf-8")
+        Path("email_body.txt").write_text(body.replace("\n", "<br>"), encoding="utf-8")
         Path("attachment.txt").write_text(caminho_arquivo if tem_anexo else "", encoding="utf-8")
 
     except Exception as e:
