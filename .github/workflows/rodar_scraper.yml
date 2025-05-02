@@ -137,7 +137,7 @@ jobs:
           python supabase/supabase_download.py ${{ secrets.SUPABASE_URL }} ${{ secrets.SUPABASE_BUCKET }} hc_tjgo_${{ steps.data_recheck.outputs.ontem_fmt }}.xlsx dados_diarios/hc_tjgo_${{ steps.data_recheck.outputs.ontem_fmt }}.xlsx
 
       - name: 🔄 Executar rechecagem
-        run: python retroativos/rechecagem_melhorada.py "${{ steps.data_recheck.outputs.anteontem }}" "${{ steps.data_recheck.outputs.ontem }}"
+        run: python retroativos/rechecagem.py "${{ steps.data_recheck.outputs.anteontem }}" "${{ steps.data_recheck.outputs.ontem }}"
 
       - name: 📋 Criar arquivo de rechecagem
         run: |
