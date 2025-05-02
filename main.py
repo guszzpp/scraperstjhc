@@ -81,6 +81,18 @@ def main(data_referencia: str):
 
         fim = datetime.now()
         logging.info(f"⏱️ Tempo de execução: {fim - inicio}")
+        fim = datetime.now()
+        duracao = fim - inicio
+        logging.info(f"⏱️ Tempo de execução: {duracao}")
+
+        # ─── Métricas para o e-mail ────────────────────────────────────
+        total_site = len(resultados)               # quantos HCs o site listou
+        total_extraidos = len(resultados)          # quantos efetivamente extraímos
+        paginas_processadas = len(paginas_info)    # quantas páginas navegamos
+        paginas_total = len(paginas_info)          # mesma aqui (se quiser outra lógica, ajuste)
+        horario_finalizacao = fim.strftime("%H:%M:%S")
+        duracao_segundos = duracao.total_seconds()
+        nome_arquivo = Path(caminho_excel).name if caminho_excel else ""
 
         logging.info("📧 Preparando e-mail...")
         preparar_email_relatorio_diario(
@@ -88,6 +100,20 @@ def main(data_referencia: str):
             caminho_arquivo=caminho_excel,
             mensagem_status=mensagem_status,
             erros=erros if erros else None
+        )
+
+        preparar_email_relatorio_diario(
+            data_busca=data_referencia,
+            caminho_arquivo=caminho_excel,
+            mensagem_status=mensagem_status,
+            erros=erros if erros else None,
+            total_site=total_site,
+            total_extraidos=total_extraidos,
+            paginas_processadas=paginas_processadas,
+            paginas_total=paginas_total,
+            horario_finalizacao=horario_finalizacao,
+            duracao_segundos=duracao_segundos,
+            nome_arquivo=nome_arquivo
         )
 
         # ✅ Enviar e-mail com HTML como no modelo antigo

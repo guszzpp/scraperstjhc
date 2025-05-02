@@ -114,67 +114,82 @@ def preparar_email_alerta_retroativos(df_retroativos: pd.DataFrame):
         Path("attachment.txt").write_text("", encoding="utf-8")
 
 
-def preparar_email_relatorio_diario(data_busca, caminho_arquivo=None, mensagem_status=None, erros=None):
+def preparar_email_relatorio_diario(
+    data_busca,
+    caminho_arquivo=None,
+    mensagem_status=None,
+    erros=None,
+    total_site=0,
+    total_extraidos=0,
+    paginas_processadas=0,
+    paginas_total=0,
+    horario_finalizacao="",
+    duracao_segundos=0.0,
+    nome_arquivo=""
+):
     hoje = date.today()
 
     try:
-        tem_anexo = caminho_arquivo and os.path.exists(caminho_arquivo)
+        tem_anexo = bool(caminho_arquivo and os.path.exists(caminho_arquivo))
 
         if erros:
             subject = f"⚠️ Alerta: Erros na checagem de HCs STJ/TJGO - {data_busca}"
+            body = dedent(f"""\
+                Prezado(a),
+
+                Tivemos erros na execução para {data_busca}:
+
+                {"".join(f"- {e}\n" for e in erros)}
+
+                Atenciosamente,
+                Sistema automatizado
+            """)
+
         elif tem_anexo:
             subject = f"✅ Resultados da checagem de HCs STJ/TJGO - {data_busca}"
+            body = dedent(f"""\
+                Prezado(a),
+
+                Segue em anexo o relatório de Habeas Corpus (HCs) autuados no STJ,
+                com origem no TJGO, referente a {data_busca}.
+
+                Resumo da execução:
+                - Resultados encontrados pelo site: {total_site}
+                - HCs efetivamente extraídos: {total_extraidos}
+                - Páginas processadas: {paginas_processadas} de {paginas_total}
+                - Script finalizado em: {horario_finalizacao} (duração {duracao_segundos:.2f}s)
+
+                O arquivo '{nome_arquivo}' está anexado a este e-mail.
+
+                Atenciosamente,
+                Sistema automatizado
+            """)
+
         else:
             subject = f"ℹ️ Nenhum HC encontrado na checagem STJ/TJGO - {data_busca}"
+            body = dedent(f"""\
+                Prezado(a),
 
-        body = dedent(f"""\
-            Prezado(a),
+                Nenhum Habeas Corpus foi encontrado no STJ com origem no TJGO
+                para a data {data_busca}.
 
-            Segue em anexo o relatório de Habeas Corpus (HCs) autuados no STJ, com origem no TJGO, referente ao período de {data_busca} a {data_busca}.
+                Resumo da execução:
+                - Resultados encontrados pelo site: {total_site}
+                - HCs efetivamente extraídos: {total_extraidos}
+                - Páginas processadas: {paginas_processadas} de {paginas_total}
+                - Script finalizado em: {horario_finalizacao} (duração {duracao_segundos:.2f}s)
 
-            Resumo da execução:
-            - Resultados encontrados pelo site: {total_site}
-            - HCs efetivamente extraídos: {total_extraidos} (detalhes no anexo)
-            - Páginas processadas: {paginas_processadas} de {paginas_total}
-            - Script finalizado em: {horario_finalizacao} (Duração: {duracao_segundos:.2f}s)
+                Atenciosamente,
+                Sistema automatizado
+            """)
 
-            O arquivo '{nome_arquivo}' está anexado a este e-mail.
-
-            Esta automação tem como objetivo auxiliar no acompanhamento processual, mas **não substitui a conferência manual nos canais oficiais do STJ**.
-
-            Atenciosamente,
-            Sistema automatizado
-        """)
-
-        if erros:
-            body += "<p><strong>⚠️ Erros detectados:</strong></p><ul>"
-            for erro in erros:
-                body += f"<li>{erro}</li>"
-            body += "</ul>"
-        elif mensagem_status:
-            body += f"<p><strong>Status:</strong> {mensagem_status}</p>"
-        elif tem_anexo:
-            body += f"<p><strong>Status:</strong> HCs localizados – detalhes no anexo.</p>"
-        else:
-            body += f"<p><strong>Status:</strong> Nenhum HC localizado.</p>"
-
-        body += dedent(f"""\
-    
-            Esta automação tem como objetivo auxiliar no acompanhamento processual, mas **não substitui a conferência manual nos canais oficiais do STJ**.
-
-            Atenciosamente,
-            Sistema automatizado
-        """)
-
-
+        # --- gravação dos arquivos que serão lidos pelo main.py ---
         Path("email_subject.txt").write_text(subject, encoding="utf-8")
         Path("email_body.txt").write_text(body, encoding="utf-8")
         Path("attachment.txt").write_text(caminho_arquivo if tem_anexo else "", encoding="utf-8")
 
-        logging.info("Arquivos de e-mail para relatório diário gerados com sucesso")
-
     except Exception as e:
-        logging.error("Erro ao preparar arquivos de e-mail para relatório diário: %s", e, exc_info=True)
+        logging.error("Erro ao preparar arquivos de e-mail para relatório diário", exc_info=True)
         Path("email_subject.txt").write_text("🛑 Erro ao gerar e-mail de relatório diário", encoding="utf-8")
         Path("email_body.txt").write_text(
             "<p><strong>🛑 ERRO NO SISTEMA</strong></p>"
