@@ -125,11 +125,15 @@ jobs:
       - name: 📅 Obter ontem e anteontem
         id: data_recheck
         run: |
+          ONTEM=$(date -d "yesterday" +"%d/%m/%Y")
+          ONTEM_FMT=$(date -d "yesterday" +"%d-%m-%Y")
           ANTEONTEM=$(date -d "2 days ago" +"%d/%m/%Y")
           ANTEONTEM_FMT=$(date -d "2 days ago" +"%d-%m-%Y")
+          echo "ontem=$ONTEM" >> $GITHUB_OUTPUT
+          echo "ontem_fmt=$ONTEM_FMT" >> $GITHUB_OUTPUT
           echo "anteontem=$ANTEONTEM" >> $GITHUB_OUTPUT
           echo "anteontem_fmt=$ANTEONTEM_FMT" >> $GITHUB_OUTPUT
-
+      
       - name: ⬇️ Download antecedente
         run: |
           python supabase/supabase_download.py ${{ secrets.SUPABASE_URL }} ${{ secrets.SUPABASE_BUCKET }} hc_tjgo_${{ steps.data_recheck.outputs.anteontem_fmt }}.xlsx dados_diarios/hc_tjgo_${{ steps.data_recheck.outputs.anteontem_fmt }}.xlsx
