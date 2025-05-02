@@ -1,40 +1,41 @@
-import pandas as pd
-from datetime import date, timedelta
-from pathlib import Path
-import logging
 import os
+import smtplib
+from datetime import date, datetime, timedelta
+from pathlib import Path
+from email.message import EmailMessage
+from email.mime.application import MIMEApplication
 from textwrap import dedent
-from retroativos.gerenciador_arquivos import obter_nome_arquivo_rechecagem
+import logging
+import pandas as pd
 
+def enviar_email(assunto, corpo_html, anexo=None):
+    EMAIL_USER = os.getenv("EMAIL_USER")
+    EMAIL_PASS = os.getenv("EMAIL_PASS")
+    DESTINATARIO = os.getenv("EMAIL_DESTINATARIO_TESTE")
 
-def preparar_email_alerta_retroativos(df_novos):
-    from util.envia_email_html import enviar_email
+    if not (EMAIL_USER and EMAIL_PASS and DESTINATARIO):
+        raise ValueError("Credenciais ou destinatário de e-mail não definidos nas variáveis de ambiente.")
 
-    hoje = datetime.now().strftime("%d/%m/%Y")
-    anteontem = (datetime.now() - timedelta(days=2)).strftime("%d/%m/%Y")
-    assunto = f"[STJ - RECHECAGEM] Resultado para o dia {anteontem}"
+    msg = EmailMessage()
+    msg["Subject"] = assunto
+    msg["From"] = EMAIL_USER
+    msg["To"] = DESTINATARIO
+    msg.set_content("Este e-mail requer um cliente compatível com HTML.")
+    msg.add_alternative(corpo_html, subtype='html')
 
-    if df_novos is not None and not df_novos.empty:
-        corpo_html = f"""
-        <p>Foram localizados novos Habeas Corpus retroativos autuados anteriormente, mas detectados apenas hoje.</p>
-        <p>Data da rechecagem: <b>{hoje}</b><br>
-        Data alvo (autuação dos retroativos): <b>{anteontem}</b></p>
-        <br>
-        <p>Confira os novos HCs detectados:</p>
-        {df_novos.to_html(index=False, border=1)}
-        <br>
-        <p>O arquivo em anexo contém os mesmos dados exibidos acima.</p>
-        """
-        anexo = "dados_diarios/rechecagem_hc_tjgo_" + datetime.now().strftime("%d-%m-%Y") + ".xlsx"
-    else:
-        corpo_html = f"""
-        <p>Nenhum novo Habeas Corpus retroativo (autuado em data anterior, mas só detectado hoje) foi localizado no STJ com origem no TJGO, na rechecagem realizada em <b>{hoje}</b> para o dia <b>{anteontem}</b>.</p>
-        <br>
-        <p>Este e-mail foi gerado automaticamente.</p>
-        """
-        anexo = None
+    if anexo and os.path.exists(anexo):
+        with open(anexo, "rb") as f:
+            part = MIMEApplication(f.read(), Name=os.path.basename(anexo))
+        part['Content-Disposition'] = f'attachment; filename="{os.path.basename(anexo)}"'
+        msg.attach(part)
 
-    enviar_email(assunto=assunto, corpo_html=corpo_html, anexo=anexo)
+    with smtplib.SMTP("smtp.gmail.com", 587) as smtp:
+        smtp.starttls()
+        smtp.login(EMAIL_USER, EMAIL_PASS)
+        smtp.send_message(msg)
+
+    print(f"E-mail enviado para {DESTINATARIO}")
+
 
 def preparar_email_relatorio_diario(
     data_busca,
