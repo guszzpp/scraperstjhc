@@ -3,7 +3,7 @@ from datetime import date, timedelta
 from pathlib import Path
 import logging
 import os
-
+from textwrap import dedent
 from retroativos.gerenciador_arquivos import obter_nome_arquivo_rechecagem
 
 
