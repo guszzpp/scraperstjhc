@@ -1,8 +1,14 @@
 import os
 import sys
+
+ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+if ROOT not in sys.path:
+    sys.path.insert(0, ROOT)
+
 import pandas as pd
 from datetime import datetime
 from pathlib import Path
+
 from email_detalhado import preparar_email_alerta_retroativos
 
 def comparar_arquivos(arquivo_anteontem, arquivo_ontem):
