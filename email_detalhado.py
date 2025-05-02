@@ -133,13 +133,14 @@ def preparar_email_relatorio_diario(
         tem_anexo = bool(caminho_arquivo and os.path.exists(caminho_arquivo))
 
         if erros:
+            erros_str = "\n".join(f"- {e}" for e in erros)
             subject = f"⚠️ Alerta: Erros na checagem de HCs STJ/TJGO - {data_busca}"
             body = dedent(f"""
                 Prezado(a),
 
                 Tivemos erros na execução para {data_busca}:
 
-                {"\n".join(f"- {e}" for e in erros)}
+                {erros_str}
 
                 Atenciosamente,
                 Sistema automatizado
