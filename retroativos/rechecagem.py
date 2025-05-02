@@ -146,6 +146,7 @@ def comparar_arquivos(arquivo_anteontem, arquivo_ontem):
             preparar_email_alerta_retroativos(df_divergentes)
         else:
             preparar_email_alerta_retroativos(None)
+            Path("attachment.txt").write_text("", encoding="utf-8")
 
         return tem_divergencia
         

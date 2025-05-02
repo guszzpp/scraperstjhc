@@ -192,9 +192,10 @@ jobs:
           password: ${{ secrets.EMAIL_SENHA }}
           subject: "ℹ️ Sem divergências na rechecagem - ${{ steps.data_recheck.outputs.ontem }}"
           html_body: |
-            <!-- seu HTML padrão de “sem divergência” -->
+            <p>Prezados(as),</p>
+            <p>Nenhum novo Habeas Corpus retroativo (autuado em data anterior, mas só detectado hoje) foi localizado no STJ com origem no TJGO, na rechecagem realizada em <strong>${{ steps.data_recheck.outputs.ontem }}</strong> para o dia <strong>${{ steps.data_recheck.outputs.anteontem }}</strong>.</p>
+            <p>Este é um e-mail automático. Nenhuma ação é necessária.</p>
+            <p>Atenciosamente,<br>Sistema automatizado</p>
           to: ${{ secrets.EMAIL_DESTINATARIO_TESTE }}
           from: "Rechecagem STJ HC <${{ secrets.EMAIL_USUARIO }}>"
-          attachments: dados_diarios/rechecagem_hc_tjgo_${{ steps.data_recheck.outputs.ontem_fmt }}.xlsx
-
-        
+          attachments: ""
