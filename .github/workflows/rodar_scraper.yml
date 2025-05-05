@@ -158,6 +158,17 @@ jobs:
       - name: 📂 Listar arquivos disponíveis
         run: ls -lh dados_diarios/
 
+      - name: ⬇️ Baixar arquivo do dia da rechecagem (D-2)
+        run: |
+          ARQ="hc_tjgo_${{ steps.datas_retro.outputs.anteontem_fmt }}.xlsx"
+          DEST="dados_hoje/$ARQ"
+          mkdir -p dados_hoje
+          python supabase/supabase_download.py "$ARQ" "$DEST"
+      
+      - name: 🔁 Raspagem atual de D-2 (para rechecagem)
+        run: |
+          python main.py "${{ steps.datas_retro.outputs.anteontem }}"
+        
       - name: 🔄 Rodar script de rechecagem
         run: |
           python retroativos/rechecagem.py "${{ steps.datas_retro.outputs.anteontem }}"
