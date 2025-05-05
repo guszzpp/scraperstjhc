@@ -192,12 +192,12 @@ jobs:
             echo "subject=🚨 Divergência na rechecagem STJ/TJGO - ${{ steps.datas_retro.outputs.ontem }}" >> $GITHUB_OUTPUT
 
             BODY_RETRO="Relatório de Rechecagem - ${{ steps.datas_retro.outputs.ontem }}<br><br>\
-Foi detectada uma <b>DIVERGÊNCIA</b> entre os arquivos de HCs do STJ com origem no TJGO.<br>\
-Novos processos foram adicionados retroativamente.<br>\
-O sistema identificou inserções tardias para o dia ${{ steps.datas_retro.outputs.anteontem }}.<br><br>\
-Consulte o arquivo em anexo para mais detalhes.<br><br>\
----<br>\
-Este e-mail foi gerado automaticamente pelo sistema de rechecagem. Em caso de dúvidas, entre em contato com o administrador."
+            Foi detectada uma <b>DIVERGÊNCIA</b> entre os arquivos de HCs do STJ com origem no TJGO.<br>\
+            Novos processos foram adicionados retroativamente.<br>\
+            O sistema identificou inserções tardias para o dia ${{ steps.datas_retro.outputs.anteontem }}.<br><br>\
+            Consulte o arquivo em anexo para mais detalhes.<br><br>\
+            ---<br>\
+            Este e-mail foi gerado automaticamente pelo sistema de rechecagem. Em caso de dúvidas, entre em contato com o administrador."
 
             printf "email_body<<EOF\n%s\nEOF\n" "$BODY_RETRO" >> $GITHUB_OUTPUT
             echo "attachment_name=$ARQ_SAIDA" >> $GITHUB_OUTPUT
@@ -205,11 +205,11 @@ Este e-mail foi gerado automaticamente pelo sistema de rechecagem. Em caso de d�
             echo "subject=ℹ️ Sem divergências na rechecagem STJ/TJGO - ${{ steps.datas_retro.outputs.ontem }}" >> $GITHUB_OUTPUT
 
             BODY_RETRO="Relatório de Rechecagem - ${{ steps.datas_retro.outputs.ontem }}<br><br>\
-Nenhum novo Habeas Corpus retroativo (autuado em data anterior, mas só detectado hoje) foi localizado no STJ com origem no TJGO.<br>\
-A rechecagem realizada hoje se referiu ao dia ${{ steps.datas_retro.outputs.anteontem }}.<br>\
-Não foram identificadas inserções tardias pelo sistema do STJ.<br><br>\
----<br>\
-Este e-mail foi gerado automaticamente pelo sistema de rechecagem. Em caso de dúvidas, entre em contato com o administrador."
+            Nenhum novo Habeas Corpus retroativo (autuado em data anterior, mas só detectado hoje) foi localizado no STJ com origem no TJGO.<br>\
+            A rechecagem realizada hoje se referiu ao dia ${{ steps.datas_retro.outputs.anteontem }}.<br>\
+            Não foram identificadas inserções tardias pelo sistema do STJ.<br><br>\
+            ---<br>\
+            Este e-mail foi gerado automaticamente pelo sistema de rechecagem. Em caso de dúvidas, entre em contato com o administrador."
 
             printf "email_body<<EOF\n%s\nEOF\n" "$BODY_RETRO" >> $GITHUB_OUTPUT
             echo "attachment_name=" >> $GITHUB_OUTPUT
