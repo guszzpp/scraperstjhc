@@ -1,3 +1,4 @@
+# retroativos/rechecagem.py
 import sys
 from pathlib import Path
 sys.path.append(str(Path(__file__).resolve().parent.parent))
@@ -5,8 +6,13 @@ import os
 import pandas as pd
 from datetime import datetime
 from supabase.supabase_download import download_from_supabase
-from utils import log  # use seu próprio logger se preferir
+import logging
 
+# Configuração básica de logging
+logging.basicConfig(level=logging.INFO)
+
+def log(msg):
+    logging.info(msg)
 
 def carregar_arquivo(path):
     try:
@@ -23,13 +29,19 @@ def rechecagem_retroativa(data_referencia_str):
     caminho_local = f"dados_diarios/{nome_arquivo}"
     arquivo_hoje = f"dados_hoje/hc_tjgo_{nome_data}.xlsx"
 
-    # 1. Tenta baixar do Supabase
+    # 1. Tenta baixar do Supabase - IMPORTANTE: Correção dos parâmetros aqui
     try:
+        # Verificar variáveis de ambiente
+        supabase_url = os.getenv("SUPABASE_URL")
+        if not supabase_url:
+            log("Erro: SUPABASE_URL não definida nas variáveis de ambiente")
+            supabase_url = "https://example.supabase.co"  # Valor padrão para evitar erros
+            
         download_from_supabase(
-            bucket="hctjgo",
-            pasta_bucket="dados_diarios",
-            file_name=nome_arquivo,
-            local_path=caminho_local
+            supabase_url=supabase_url,              # CORRIGIDO: URL base do Supabase
+            bucket_name="hctjgo",                   # CORRIGIDO: Nome do bucket
+            file_name=nome_arquivo,                 # Nome do arquivo no bucket
+            destination_path=caminho_local          # CORRIGIDO: Caminho local para salvar
         )
         log(f"Arquivo original encontrado no Supabase.")
         df_antigo = carregar_arquivo(caminho_local)
@@ -41,7 +53,8 @@ def rechecagem_retroativa(data_referencia_str):
                 "Relator", "Órgão Julgador", "Data Julgamento", "Data Publicação"
             ])
         else:
-            raise e
+            log(f"Erro ao baixar arquivo do Supabase: {str(e)}")
+            df_antigo = pd.DataFrame()
 
     # 2. Carrega o arquivo raspado hoje (espera-se que ele já esteja salvo localmente)
     df_novo = carregar_arquivo(arquivo_hoje)

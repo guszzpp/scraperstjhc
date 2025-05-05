@@ -1,3 +1,5 @@
+# main.py
+
 import sys
 import logging
 import os
@@ -33,6 +35,10 @@ logging.basicConfig(
 def listar_arquivos_com_detalhes(pasta):
     logging.info(f"📁 Conteúdo da pasta {pasta}:")
     try:
+        if not os.path.exists(pasta):
+            logging.error(f"❌ Pasta {pasta} não existe!")
+            return
+            
         for entry in os.scandir(pasta):
             info = entry.stat()
             permissao = stat.filemode(info.st_mode)
@@ -52,7 +58,9 @@ def main(data_referencia: str):
         logging.info(f"📅 Data de referência: {data_referencia}")
         logging.info(f"🏛️ Órgão de origem: {ORGAO_ORIGEM}")
 
+        # Garantir que o diretório de dados existe
         Path("dados_diarios").mkdir(exist_ok=True)
+        listar_arquivos_com_detalhes(".")  # Mostrar diretório atual
 
         navegador = iniciar_navegador()
         wait = WebDriverWait(navegador, 30)
@@ -68,13 +76,16 @@ def main(data_referencia: str):
             for info in paginas_info:
                 logging.info(info)
 
-            caminho_excel = exportar_resultados(resultados, data_referencia, data_referencia)
-
+            caminho_excel = None
             if resultados:
                 logging.info(f"✅ {len(resultados)} HCs encontrados.")
                 df = pd.DataFrame(resultados)
-                caminho_csv = salvar_csv_resultado(df, data_referencia)
+                caminho_csv = f"dados_diarios/resultados_{data_referencia.replace('/','-')}.csv"
+                df.to_csv(caminho_csv, index=False)
                 logging.info(f"💾 CSV salvo em: {caminho_csv}")
+                
+                # Criar o arquivo Excel
+                caminho_excel = exportar_resultados(resultados, data_referencia, data_referencia)
                 mensagem_status = f"Foram encontrados {len(resultados)} Habeas Corpus no STJ com origem no TJGO para a data {data_referencia}."
             else:
                 logging.info("ℹ️ Nenhum HC encontrado.")
@@ -100,10 +111,10 @@ def main(data_referencia: str):
         logging.info(f"⏱️ Tempo de execução: {duracao}")
 
         # ─── Métricas para e-mail ─────────────────────────────────────
-        total_site = len(resultados)
-        total_extraidos = len(resultados)
-        paginas_processadas = len(paginas_info)
-        paginas_total = len(paginas_info)
+        total_site = len(resultados) if resultados else 0
+        total_extraidos = len(resultados) if resultados else 0
+        paginas_processadas = len(paginas_info) if paginas_info else 0
+        paginas_total = len(paginas_info) if paginas_info else 0
         horario_finalizacao = fim.strftime("%H:%M:%S")
         duracao_segundos = duracao.total_seconds()
         nome_arquivo = Path(caminho_excel).name if caminho_excel else ""
@@ -124,27 +135,48 @@ def main(data_referencia: str):
             nome_arquivo=nome_arquivo
         )
 
-        # ─── Copiar para dados_hoje ───────────────────────────────────
+        # ─── Gravar attachment.txt e verificar se o arquivo existe ─────────────────────────────────────
         try:
-            if caminho_excel and Path(caminho_excel).exists():
-                Path("dados_hoje").mkdir(exist_ok=True)
-                destino = Path("dados_hoje") / Path(caminho_excel).name
-                Path(caminho_excel).replace(destino)
-                logging.info(f"📤 Arquivo copiado para rechecagem: {destino}")
-        except Exception as e:
-            logging.error(f"❌ Erro ao copiar arquivo para dados_hoje: {e}")
-
-        # ─── DEBUG ls -la ──────────────────────────────────────────────
-        listar_arquivos_com_detalhes("dados_diarios")
-
-        # ─── Gravar attachment.txt ─────────────────────────────────────
-        try:
-            if caminho_excel and Path(caminho_excel).exists():
+            if caminho_excel and os.path.exists(caminho_excel):
+                # Salvar caminho absoluto, mais seguro
+                caminho_absoluto = os.path.abspath(caminho_excel)
                 with open("attachment.txt", "w", encoding="utf-8") as f:
-                    f.write(str(Path(caminho_excel)))
-                logging.info("📎 attachment.txt gerado com o nome do anexo.")
+                    f.write(caminho_absoluto)
+                logging.info(f"📎 attachment.txt gerado com caminho absoluto: {caminho_absoluto}")
+                if os.path.exists(caminho_absoluto):
+                    logging.info(f"✅ Arquivo anexo verificado e existe: {caminho_absoluto}")
+                    logging.info(f"   Tamanho do arquivo: {os.path.getsize(caminho_absoluto)} bytes")
+                else:
+                    logging.error(f"❌ ALERTA: O caminho do anexo existe mas o arquivo não: {caminho_absoluto}")
+            else:
+                logging.info("📎 Nenhum anexo para incluir no e-mail.")
+                # Criar um arquivo vazio para attachment.txt para evitar erros
+                with open("attachment.txt", "w", encoding="utf-8") as f:
+                    f.write("")
         except Exception as e:
             logging.error(f"❌ Erro ao criar attachment.txt: {e}")
+            # Garantir que o arquivo exista para evitar falhas no workflow
+            with open("attachment.txt", "w", encoding="utf-8") as f:
+                f.write("")
+
+        # ─── DEBUG do ambiente ──────────────────────────────────────────
+        logging.info("🔍 Verificando diretórios e arquivos:")
+        listar_arquivos_com_detalhes(".")
+        listar_arquivos_com_detalhes("dados_diarios")
+        
+        try:
+            with open("attachment.txt", "r", encoding="utf-8") as f:
+                anexo_path = f.read().strip()
+                logging.info(f"📎 Conteúdo do attachment.txt: '{anexo_path}'")
+                if anexo_path:
+                    if os.path.exists(anexo_path):
+                        logging.info(f"✅ Arquivo anexo existe: {anexo_path}")
+                    else:
+                        logging.error(f"❌ Arquivo anexo NÃO existe: {anexo_path}")
+                else:
+                    logging.info("📎 attachment.txt está vazio (sem anexo)")
+        except Exception as e:
+            logging.error(f"❌ Erro ao ler attachment.txt: {e}")
 
         logging.info("✅ Execução finalizada.")
         return 1 if erros else 0
