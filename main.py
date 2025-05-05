@@ -153,9 +153,19 @@ def main(data_referencia: str):
         except Exception as envio_erro:
             logging.error(f"❌ Erro ao enviar e-mail: {envio_erro}")
 
+        # 📁 Salvar cópia em dados_hoje para uso na rechecagem
+        try:
+            if caminho_excel and Path(caminho_excel).exists():
+                Path("dados_hoje").mkdir(exist_ok=True)
+                destino = Path("dados_hoje") / Path(caminho_excel).name
+                Path(caminho_excel).replace(destino)
+                logging.info(f"📤 Arquivo copiado para rechecagem: {destino}")
+        except Exception as e:
+            logging.error(f"❌ Erro ao copiar arquivo para dados_hoje: {e}")
+
         logging.info("✅ Execução finalizada.")
         return 1 if erros else 0
-
+        
     except Exception as e:
         logging.error(f"❌ Erro crítico: {e}", exc_info=True)
         return 1
