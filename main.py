@@ -19,14 +19,30 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.application import MIMEApplication
 import smtplib
+import stat
+import time
 
-# Configurar logging com formato colorido e data/hora
+# ─── LOGGING ─────────────────────────────────────────────────────────
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(levelname)s - %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
 )
 
+# ─── FUNÇÃO DE DEBUG TIPO `ls -la` ───────────────────────────────────
+def listar_arquivos_com_detalhes(pasta):
+    logging.info(f"📁 Conteúdo da pasta {pasta}:")
+    try:
+        for entry in os.scandir(pasta):
+            info = entry.stat()
+            permissao = stat.filemode(info.st_mode)
+            tamanho = info.st_size
+            modificado = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(info.st_mtime))
+            logging.info(f"{permissao} {tamanho:>10} {modificado} {entry.name}")
+    except Exception as e:
+        logging.error(f"❌ Erro ao listar arquivos: {e}")
+
+# ─── FUNÇÃO PRINCIPAL ────────────────────────────────────────────────
 def main(data_referencia: str):
     erros = []
     inicio = datetime.now()
@@ -80,28 +96,20 @@ def main(data_referencia: str):
                 erros.append(str(e))
 
         fim = datetime.now()
-        logging.info(f"⏱️ Tempo de execução: {fim - inicio}")
-        fim = datetime.now()
         duracao = fim - inicio
         logging.info(f"⏱️ Tempo de execução: {duracao}")
 
-        # ─── Métricas para o e-mail ────────────────────────────────────
-        total_site = len(resultados)               # quantos HCs o site listou
-        total_extraidos = len(resultados)          # quantos efetivamente extraímos
-        paginas_processadas = len(paginas_info)    # quantas páginas navegamos
-        paginas_total = len(paginas_info)          # mesma aqui (se quiser outra lógica, ajuste)
+        # ─── Métricas para e-mail ─────────────────────────────────────
+        total_site = len(resultados)
+        total_extraidos = len(resultados)
+        paginas_processadas = len(paginas_info)
+        paginas_total = len(paginas_info)
         horario_finalizacao = fim.strftime("%H:%M:%S")
         duracao_segundos = duracao.total_seconds()
         nome_arquivo = Path(caminho_excel).name if caminho_excel else ""
 
+        # ─── Gerar HTML e arquivos auxiliares ─────────────────────────
         logging.info("📧 Preparando e-mail...")
-        preparar_email_relatorio_diario(
-            data_busca=data_referencia,
-            caminho_arquivo=caminho_excel,
-            mensagem_status=mensagem_status,
-            erros=erros if erros else None
-        )
-
         preparar_email_relatorio_diario(
             data_busca=data_referencia,
             caminho_arquivo=caminho_excel,
@@ -116,7 +124,7 @@ def main(data_referencia: str):
             nome_arquivo=nome_arquivo
         )
 
-        # ✅ Enviar e-mail com HTML como no modelo antigo
+        # ─── Enviar o e-mail ───────────────────────────────────────────
         try:
             remetente = os.getenv("EMAIL_USUARIO")
             senha = os.getenv("EMAIL_SENHA")
@@ -142,10 +150,9 @@ def main(data_referencia: str):
                         msg.attach(part)
 
                 with smtplib.SMTP("smtp.gmail.com", 587) as server:
-                    server.ehlo()           # identifica o cliente ao servidor
-                    server.starttls()       # sobe o canal para TLS
-                    server.ehlo()           # re-identifica já em TLS
-
+                    server.ehlo()
+                    server.starttls()
+                    server.ehlo()
                     server.login(remetente, senha)
                     server.sendmail(remetente, destinatarios, msg.as_string())
                     logging.info("📨 E-mail enviado com sucesso.")
@@ -153,7 +160,7 @@ def main(data_referencia: str):
         except Exception as envio_erro:
             logging.error(f"❌ Erro ao enviar e-mail: {envio_erro}")
 
-        # 📁 Salvar cópia em dados_hoje para uso na rechecagem
+        # ─── Copiar para dados_hoje ───────────────────────────────────
         try:
             if caminho_excel and Path(caminho_excel).exists():
                 Path("dados_hoje").mkdir(exist_ok=True)
@@ -163,13 +170,26 @@ def main(data_referencia: str):
         except Exception as e:
             logging.error(f"❌ Erro ao copiar arquivo para dados_hoje: {e}")
 
+        # ─── DEBUG ls -la ──────────────────────────────────────────────
+        listar_arquivos_com_detalhes("dados_diarios")
+
+        # ─── Gravar attachment.txt ─────────────────────────────────────
+        try:
+            if caminho_excel and Path(caminho_excel).exists():
+                with open("attachment.txt", "w", encoding="utf-8") as f:
+                    f.write(str(Path(caminho_excel)))
+                logging.info("📎 attachment.txt gerado com o nome do anexo.")
+        except Exception as e:
+            logging.error(f"❌ Erro ao criar attachment.txt: {e}")
+
         logging.info("✅ Execução finalizada.")
         return 1 if erros else 0
-        
+
     except Exception as e:
         logging.error(f"❌ Erro crítico: {e}", exc_info=True)
         return 1
 
+# ─── CLI ─────────────────────────────────────────────────────────────
 if __name__ == "__main__":
     if len(sys.argv) < 2:
         print("🚫 Erro: Data não informada")
