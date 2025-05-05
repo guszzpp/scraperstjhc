@@ -111,38 +111,6 @@ def exportar_resultados(resultados, data_inicial, data_final):
     # Congelar linha do cabeçalho
     ws.freeze_panes = "A2"
 
-    # Adicionar rodapé com informações
-    row_rodape = registros_validos + 3
-    
-    # Estilo para rodapé - título
-    footer_title_style = NamedStyle(name='footer_title_style')
-    footer_title_style.font = Font(name="Arial", bold=True, size=10)
-    footer_title_style.alignment = Alignment(horizontal="left", vertical="center")
-    wb.add_named_style(footer_title_style)
-    
-    # Estilo para rodapé - valor
-    footer_value_style = NamedStyle(name='footer_value_style')
-    footer_value_style.font = Font(name="Arial", size=10)
-    footer_value_style.alignment = Alignment(horizontal="left", vertical="center")
-    wb.add_named_style(footer_value_style)
-    
-    # Adicionar linha de título do rodapé com formatação
-    cell_title = ws.cell(row=row_rodape, column=1, value="Informações da Exportação:")
-    cell_title.style = 'footer_title_style'
-    
-    # Adicionar linhas de dados do rodapé com formatação
-    ws.cell(row=row_rodape + 1, column=1, value="Data da Busca:").style = 'footer_title_style'
-    if data_inicial == data_final:
-        ws.cell(row=row_rodape + 1, column=2, value=data_inicial).style = 'footer_value_style'
-    else:
-        ws.cell(row=row_rodape + 1, column=2, value=f"{data_inicial} a {data_final}").style = 'footer_value_style'
-    
-    ws.cell(row=row_rodape + 2, column=1, value="Total de Registros:").style = 'footer_title_style'
-    ws.cell(row=row_rodape + 2, column=2, value=registros_validos).style = 'footer_value_style'
-    
-    ws.cell(row=row_rodape + 3, column=1, value="Data da Exportação:").style = 'footer_title_style'
-    ws.cell(row=row_rodape + 3, column=2, value=datetime.now().strftime("%d/%m/%Y %H:%M:%S")).style = 'footer_value_style'
-
     # Define nome do arquivo
     def formatar(data):
         return data.replace("/", "-")
