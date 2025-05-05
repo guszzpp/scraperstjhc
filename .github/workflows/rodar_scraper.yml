@@ -62,7 +62,7 @@ jobs:
           ARQ=dados_diarios/hc_tjgo_${{ steps.data_scrape.outputs.ontem_fmt }}.xlsx
           if [[ -f "$ARQ" ]]; then
             python supabase/supabase_upload.py "$ARQ" "hc_tjgo_${{ steps.data_scrape.outputs.ontem_fmt }}.xlsx"
-            - run: ls -l dados_diarios
+            ls -l dados_diarios  # ← Correto!
           else
             echo "⏭️ Arquivo não encontrado; pulando upload."
           fi
@@ -89,7 +89,8 @@ jobs:
             echo "attachment_name=$(<attachment.txt)" >> $GITHUB_OUTPUT
           fi
 
-      - name: 📤 Enviar e-mail de status
+      - name: 📧 Enviar e-mail de status (com ou sem anexo)
+        if: steps.gerar_email.outputs.attachment_name != ''
         uses: dawidd6/action-send-mail@v3
         with:
           server_address: smtp.gmail.com
@@ -100,7 +101,21 @@ jobs:
           html_body: "${{ steps.gerar_email.outputs.email_body }}"
           to: ${{ secrets.EMAIL_DESTINATARIO_TESTE }}
           from: "Checagem STJ HC <${{ secrets.EMAIL_USUARIO }}>"
-          attachments: ${{ steps.gerar_email.outputs.attachment_name || '' }}
+          attachments: "${{ steps.gerar_email.outputs.attachment_name }}"
+        
+      - name: 📧 Enviar e-mail de status (sem anexo)
+        if: steps.gerar_email.outputs.attachment_name == ''
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 587
+          username: ${{ secrets.EMAIL_USUARIO }}
+          password: ${{ secrets.EMAIL_SENHA }}
+          subject: "${{ steps.gerar_email.outputs.email_subject }}"
+          html_body: "${{ steps.gerar_email.outputs.email_body }}"
+          to: ${{ secrets.EMAIL_DESTINATARIO_TESTE }}
+          from: "Checagem STJ HC <${{ secrets.EMAIL_USUARIO }}>"
+          attachments: ""
 
   rechecagem:
     name: Rechecagem Retroativa

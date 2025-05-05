@@ -3,7 +3,7 @@ import sys
 import pandas as pd
 from datetime import datetime
 from pathlib import Path
-from supabase_download import download_from_supabase
+from supabase.supabase_download import download_from_supabase
 from utils import log  # use seu próprio logger se preferir
 
 def carregar_arquivo(path):
