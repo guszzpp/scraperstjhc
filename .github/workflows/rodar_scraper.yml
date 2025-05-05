@@ -163,8 +163,8 @@ jobs:
           ARQ="hc_tjgo_${{ steps.datas_retro.outputs.anteontem_fmt }}.xlsx"
           DEST="dados_hoje/$ARQ"
           mkdir -p dados_hoje
-          python supabase/supabase_download.py "$ARQ" "$DEST"
-      
+          python supabase/supabase_download.py "$SUPABASE_URL" "$SUPABASE_BUCKET" "$ARQ" "$DEST"
+    
       - name: 🔁 Raspagem atual de D-2 (para rechecagem)
         run: |
           python main.py "${{ steps.datas_retro.outputs.anteontem }}"
