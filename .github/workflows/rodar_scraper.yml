@@ -4,7 +4,7 @@ name: Pipeline HCs STJ/TJGO
 
 on:
   schedule:
-    - cron: '0 15 * * *'    # Diariamente às 12h (Brasília)
+    - cron: '0 15 * * *'  # Diariamente às 12h (Brasília)
   workflow_dispatch:
 
 env:
@@ -132,7 +132,23 @@ jobs:
           fi
 
       - name: ☁️ Upload resultado retroativo
-        run: python supabase/supabase_upload.py "$ARQ_SAIDA" "$(basename "$ARQ_SAIDA")"
+        run: |
+          ARQ_SAIDA="dados_diarios/rechecagem_hc_tjgo_${{ steps.datas_retro.outputs.ontem_fmt }}.xlsx"
+          python supabase/supabase_upload.py "$ARQ_SAIDA" "$(basename "$ARQ_SAIDA")"
+
+      - name: 📧 Definir conteúdo do email retroativo
+        id: email_retro
+        run: |
+          ARQ_SAIDA="dados_diarios/rechecagem_hc_tjgo_${{ steps.datas_retro.outputs.ontem_fmt }}.xlsx"
+          if grep -qx "true" tem_divergencia.txt; then
+            echo "subject=🚨 Divergência na rechecagem - ${{ steps.datas_retro.outputs.ontem }}" >> $GITHUB_OUTPUT
+            echo "body=<p>Verificar anexo com divergências encontradas na rechecagem.</p>" >> $GITHUB_OUTPUT
+            echo "attachment=$ARQ_SAIDA" >> $GITHUB_OUTPUT
+          else
+            echo "subject=ℹ️ Sem divergências na rechecagem - ${{ steps.datas_retro.outputs.ontem }}" >> $GITHUB_OUTPUT
+            echo "body=<p>Prezados(as),</p><p>Nenhum novo Habeas Corpus retroativo (autuado em data anterior, mas só detectado hoje) foi localizado no STJ com origem no TJGO, na rechecagem realizada em <strong>${{ steps.datas_retro.outputs.ontem }}</strong> para o dia <strong>${{ steps.datas_retro.outputs.anteontem }}</strong>.</p><p>Este é um e-mail automático. Nenhuma ação é necessária.</p><p>Atenciosamente,<br>Sistema automatizado</p>" >> $GITHUB_OUTPUT
+            echo "attachment=" >> $GITHUB_OUTPUT
+          fi
 
       - name: 📧 Enviar email da rechecagem
         uses: dawidd6/action-send-mail@v3
@@ -141,10 +157,8 @@ jobs:
           server_port: 587
           username: ${{ env.EMAIL_USER }}
           password: ${{ env.EMAIL_PASS }}
-          subject: >
-            ${{ grep -qx "true" tem_divergencia.txt && '🚨 Divergência na rechecagem' || 'ℹ️ Sem divergências na rechecagem' }} - ${{ steps.datas_retro.outputs.ontem }}
-          html_body: >
-            ${{ grep -qx "true" tem_divergencia.txt && 'Verificar anexo com divergências.' || format('Nenhum novo Habeas Corpus retroativo foi localizado em {0} para o dia {1}.', steps.datas_retro.outputs.ontem, steps.datas_retro.outputs.anteontem) }}
+          subject: "${{ steps.email_retro.outputs.subject }}"
+          html_body: "${{ steps.email_retro.outputs.body }}"
           to: ${{ env.EMAIL_DESTINO }}
           from: "Rechecagem STJ HC <${{ env.EMAIL_USER }}>"
-          attachments: "${{ grep -qx 'true' tem_divergencia.txt && ARQ_SAIDA || '' }}"
+          attachments: "${{ steps.email_retro.outputs.attachment }}"
