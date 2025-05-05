@@ -53,6 +53,13 @@ jobs:
       - name: 🔍 Rodar scraper principal
         run: python main.py "${{ steps.datas.outputs.ontem }}"
 
+      - name: 📂 Verificar arquivos e conteúdo do attachment.txt
+        run: |
+          echo "Arquivos gerados:"
+          ls -l dados_diarios
+          echo "Conteúdo de attachment.txt:"
+          cat attachment.txt || echo "Arquivo attachment.txt ausente"
+      
       - name: 📥 Upload Supabase (se disponível)
         run: |
           ARQ="dados_diarios/hc_tjgo_${{ steps.datas.outputs.ontem_fmt }}.xlsx"
