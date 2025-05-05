@@ -124,42 +124,6 @@ def main(data_referencia: str):
             nome_arquivo=nome_arquivo
         )
 
-        # ─── Enviar o e-mail ───────────────────────────────────────────
-        try:
-            remetente = os.getenv("EMAIL_USUARIO")
-            senha = os.getenv("EMAIL_SENHA")
-            destinatarios = os.getenv("EMAIL_DESTINATARIO", "").split(",")
-
-            if not remetente or not senha or not destinatarios:
-                logging.error("❌ Variáveis de e-mail não definidas corretamente.")
-            else:
-                assunto = Path("email_subject.txt").read_text(encoding="utf-8").strip()
-                corpo = Path("email_body.txt").read_text(encoding="utf-8").strip()
-                anexo_path = Path("attachment.txt").read_text(encoding="utf-8").strip()
-
-                msg = MIMEMultipart()
-                msg["From"] = remetente
-                msg["To"] = ", ".join(destinatarios)
-                msg["Subject"] = assunto
-                msg.attach(MIMEText(corpo, "html"))
-
-                if anexo_path and Path(anexo_path).exists():
-                    with open(anexo_path, "rb") as f:
-                        part = MIMEApplication(f.read(), Name=Path(anexo_path).name)
-                        part["Content-Disposition"] = f'attachment; filename="{Path(anexo_path).name}"'
-                        msg.attach(part)
-
-                with smtplib.SMTP("smtp.gmail.com", 587) as server:
-                    server.ehlo()
-                    server.starttls()
-                    server.ehlo()
-                    server.login(remetente, senha)
-                    server.sendmail(remetente, destinatarios, msg.as_string())
-                    logging.info("📨 E-mail enviado com sucesso.")
-
-        except Exception as envio_erro:
-            logging.error(f"❌ Erro ao enviar e-mail: {envio_erro}")
-
         # ─── Copiar para dados_hoje ───────────────────────────────────
         try:
             if caminho_excel and Path(caminho_excel).exists():
