@@ -85,7 +85,7 @@ jobs:
           fi
           printf "email_body<<EOF\n%s\nEOF\n" "$BODY" >> $GITHUB_OUTPUT
 
-          # Anexo (fallback se attachment.txt não existir ou estiver vazio)
+          # Anexo (fallback)
           if [ -s "attachment.txt" ]; then
             ATTACH=$(<attachment.txt)
             if [ -f "$ATTACH" ]; then
@@ -156,23 +156,21 @@ jobs:
           restore-keys: dados-diarios-
 
       - name: 📂 Listar arquivos disponíveis
-        run: |
-          echo "Arquivos disponíveis em dados_diarios:"
-          ls -lh dados_diarios/
+        run: ls -lh dados_diarios/
 
       - name: 🔄 Rodar script de rechecagem
         run: |
           python retroativos/rechecagem.py "${{ steps.datas_retro.outputs.anteontem }}"
-        continue-on-error: true  # Não interromper se houver erros na rechecagem
+        continue-on-error: true
 
       - name: 📋 Preparar arquivo de rechecagem
         run: |
           ARQ_SAIDA="dados_diarios/rechecagem_hc_tjgo_${{ steps.datas_retro.outputs.ontem_fmt }}.xlsx"
           if [ -f "tem_divergencia.txt" ] && grep -qx "true" tem_divergencia.txt; then
-            echo "Divergência detectada, usando arquivo existente como rechecagem"
+            echo "Divergência detectada, copiando arquivo original"
             cp "dados_diarios/hc_tjgo_${{ steps.datas_retro.outputs.ontem_fmt }}.xlsx" "$ARQ_SAIDA" || echo "Erro ao copiar arquivo"
           else
-            echo "Sem divergência, criando arquivo de rechecagem vazio"
+            echo "Sem divergência, criando arquivo vazio"
             python supabase/criar_xlsx_vazio.py "$ARQ_SAIDA"
           fi
 
@@ -185,48 +183,48 @@ jobs:
             echo "Arquivo de rechecagem não encontrado."
           fi
 
-      - name: 📧 Definir conteúdo do email retroativo
-        id: email_retro
-        run: |
-          ARQ_SAIDA="dados_diarios/rechecagem_hc_tjgo_${{ steps.datas_retro.outputs.ontem_fmt }}.xlsx"
-          if [ -f "tem_divergencia.txt" ] && grep -qx "true" tem_divergencia.txt; then
-            echo "subject=🚨 Divergência na rechecagem STJ/TJGO - ${{ steps.datas_retro.outputs.ontem }}" >> $GITHUB_OUTPUT
-            
-            BODY_RETRO="<p><strong>Relatório de Rechecagem - ${{ steps.datas_retro.outputs.ontem }}</strong></p>
-<p>Prezado(a),</p>
-<p>Foi detectada uma <strong>divergência</strong> entre os arquivos de HCs do STJ com origem no TJGO.</p>
-<p>Isso significa que novos processos foram adicionados retroativamente.</p>
-<p>O sistema identificou inserções tardias pelo STJ para o dia ${{ steps.datas_retro.outputs.anteontem }}.</p>
-<p>Por favor, consulte o arquivo em anexo para mais detalhes.</p>
-<hr>
-<p style='color: #777; font-size: 12px;'>Este e-mail foi gerado automaticamente pelo sistema de rechecagem. Em caso de dúvidas, entre em contato com o administrador do sistema.</p>"
-            
-            printf "email_body<<EOF\n%s\nEOF\n" "$BODY_RETRO" >> $GITHUB_OUTPUT
-            echo "attachment_name=$ARQ_SAIDA" >> $GITHUB_OUTPUT
-          else
-            echo "subject=ℹ️ Sem divergências na rechecagem STJ/TJGO - ${{ steps.datas_retro.outputs.ontem }}" >> $GITHUB_OUTPUT
-            
-            BODY_RETRO="<p><strong>Relatório de Rechecagem - ${{ steps.datas_retro.outputs.ontem }}</strong></p>
-<p>Prezado(a),</p>
-<p>Nenhuma divergência foi encontrada na rechecagem dos HCs do STJ com origem no TJGO realizada em 
-${{ steps.datas_retro.outputs.ontem }} para o dia ${{ steps.datas_retro.outputs.anteontem }}.</p>
-<p>Essa rechecagem visa identificar inserções tardias pelo sistema do STJ — e hoje não foi identificada nenhuma inserção desse tipo.</p>
-<hr>
-<p style='color: #777; font-size: 12px;'>Este e-mail foi gerado automaticamente pelo sistema de rechecagem. Em caso de dúvidas, entre em contato com o administrador do sistema.</p>"
-            
-            printf "email_body<<EOF\n%s\nEOF\n" "$BODY_RETRO" >> $GITHUB_OUTPUT
-            echo "attachment_name=" >> $GITHUB_OUTPUT
-          fi
-
-      - name: 📧 Enviar email da rechecagem
-        uses: dawidd6/action-send-mail@v3
-        with:
-          server_address: smtp.gmail.com
-          server_port: 587
-          username: ${{ env.EMAIL_USER }}
-          password: ${{ env.EMAIL_PASS }}
-          subject: "${{ steps.email_retro.outputs.subject }}"
-          html_body: "${{ steps.email_retro.outputs.email_body }}"
-          to: ${{ env.EMAIL_DESTINO }}
-          from: "Rechecagem STJ HC <${{ env.EMAIL_USER }}>"
-          attachments: "${{ steps.email_retro.outputs.attachment_name }}"
+          - name: 📧 Definir conteúdo do email retroativo
+          id: email_retro
+          run: |
+            ARQ_SAIDA="dados_diarios/rechecagem_hc_tjgo_${{ steps.datas_retro.outputs.ontem_fmt }}.xlsx"
+  
+            if [ -f "tem_divergencia.txt" ] && grep -qx "true" tem_divergencia.txt; then
+              echo "subject=🚨 Divergência na rechecagem STJ/TJGO - ${{ steps.datas_retro.outputs.ontem }}" >> $GITHUB_OUTPUT
+  
+              BODY_RETRO="Relatório de Rechecagem - ${{ steps.datas_retro.outputs.ontem }}<br><br>\
+  Foi detectada uma <b>DIVERGÊNCIA</b> entre os arquivos de HCs do STJ com origem no TJGO.<br>\
+  Novos processos foram adicionados retroativamente.<br>\
+  O sistema identificou inserções tardias para o dia ${{ steps.datas_retro.outputs.anteontem }}.<br><br>\
+  Consulte o arquivo em anexo para mais detalhes.<br><br>\
+  ---<br>\
+  Este e-mail foi gerado automaticamente pelo sistema de rechecagem. Em caso de dúvidas, entre em contato com o administrador."
+  
+              printf "email_body<<EOF\n%s\nEOF\n" "$BODY_RETRO" >> $GITHUB_OUTPUT
+              echo "attachment_name=$ARQ_SAIDA" >> $GITHUB_OUTPUT
+            else
+              echo "subject=ℹ️ Sem divergências na rechecagem STJ/TJGO - ${{ steps.datas_retro.outputs.ontem }}" >> $GITHUB_OUTPUT
+  
+              BODY_RETRO="Relatório de Rechecagem - ${{ steps.datas_retro.outputs.ontem }}<br><br>\
+  Nenhum novo Habeas Corpus retroativo (autuado em data anterior, mas só detectado hoje) foi localizado no STJ com origem no TJGO.<br>\
+  A rechecagem realizada hoje se referiu ao dia ${{ steps.datas_retro.outputs.anteontem }}.<br>\
+  Não foram identificadas inserções tardias pelo sistema do STJ.<br><br>\
+  ---<br>\
+  Este e-mail foi gerado automaticamente pelo sistema de rechecagem. Em caso de dúvidas, entre em contato com o administrador."
+  
+              printf "email_body<<EOF\n%s\nEOF\n" "$BODY_RETRO" >> $GITHUB_OUTPUT
+              echo "attachment_name=" >> $GITHUB_OUTPUT
+            fi
+  
+        - name: 📧 Enviar email da rechecagem
+          uses: dawidd6/action-send-mail@v3
+          with:
+            server_address: smtp.gmail.com
+            server_port: 587
+            username: ${{ env.EMAIL_USER }}
+            password: ${{ env.EMAIL_PASS }}
+            subject: "${{ steps.email_retro.outputs.subject }}"
+            html_body: "${{ steps.email_retro.outputs.email_body }}"
+            to: ${{ env.EMAIL_DESTINO }}
+            from: "Rechecagem STJ HC <${{ env.EMAIL_USER }}>"
+            attachments: "${{ steps.email_retro.outputs.attachment_name }}"
+  
