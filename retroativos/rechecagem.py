@@ -1,11 +1,12 @@
-import os
 import sys
+from pathlib import Path
+sys.path.append(str(Path(__file__).resolve().parent.parent))
+import os
 import pandas as pd
 from datetime import datetime
-from pathlib import Path
 from supabase.supabase_download import download_from_supabase
 from utils import log  # use seu próprio logger se preferir
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 
 def carregar_arquivo(path):
     try:
