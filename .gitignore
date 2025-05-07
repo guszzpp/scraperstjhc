@@ -1,4 +1,7 @@
-# Arquivos ignorados pelo git
+# =====================
+# Ignorar arquivos e pastas indesejadas no repositório Git
+# =====================
+
 # Bytecode e caches do Python
 __pycache__/
 *.py[cod]
@@ -7,26 +10,30 @@ __pycache__/
 # Ambientes virtuais
 venv/
 .venv/
+__pypackages__/
+pip-wheel-metadata/
 
-# Dependências instaladas (se você não quiser versão-las)
-# /env/
-# /.venv/
+# Cache de ferramentas
+.mypy_cache/
 
 # Logs e arquivos temporários
 *.log
 *.tmp
+*.bak
+*.swp
+*~
 
-# Arquivos de configuração de IDEs/editors
+# Configurações de IDEs/editors
 .vscode/
 .idea/
 *.sublime-project
 *.sublime-workspace
 
-# Arquivos de sistema (macOS, Windows)
+# Arquivos de sistema
 .DS_Store
 Thumbs.db
 
-# Arquivos de credenciais / variáveis de ambiente
+# Arquivos de credenciais e variáveis de ambiente
 .env
 *.env
 .secrets/
