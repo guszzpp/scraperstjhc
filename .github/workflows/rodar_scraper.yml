@@ -202,6 +202,12 @@ jobs:
         run: |
           ARQ_SAIDA="dados_diarios/rechecagem_hc_tjgo_${{ steps.datas_retro.outputs.anteontem_fmt }}.xlsx"
 
+          if [ -f "$ARQ_SAIDA" ]; then
+            ANEXO_EMAIL="$ARQ_SAIDA"
+          else
+            ANEXO_EMAIL=""
+          fi
+
           if [ -f "tem_divergencia.txt" ] && grep -qx "true" tem_divergencia.txt; then
             echo "subject=🚨 Divergência na rechecagem STJ/TJGO - ${{ steps.datas_retro.outputs.anteontem }}" >> $GITHUB_OUTPUT
 
@@ -214,7 +220,7 @@ jobs:
             Este e-mail foi gerado automaticamente pelo sistema de rechecagem. Em caso de dúvidas, entre em contato com o administrador."
 
             printf "email_body<<EOF\n%s\nEOF\n" "$BODY_RETRO" >> $GITHUB_OUTPUT
-            echo "attachment_name=$ARQ_SAIDA" >> $GITHUB_OUTPUT
+            echo "attachment_name=$ANEXO_EMAIL" >> $GITHUB_OUTPUT
           else
             echo "subject=ℹ️ Sem divergências na rechecagem STJ/TJGO - ${{ steps.datas_retro.outputs.anteontem }}" >> $GITHUB_OUTPUT
 
@@ -226,7 +232,7 @@ jobs:
             Este e-mail foi gerado automaticamente pelo sistema de rechecagem. Em caso de dúvidas, entre em contato com o administrador."
 
             printf "email_body<<EOF\n%s\nEOF\n" "$BODY_RETRO" >> $GITHUB_OUTPUT
-            echo "attachment_name=" >> $GITHUB_OUTPUT
+            echo "attachment_name=$ANEXO_EMAIL" >> $GITHUB_OUTPUT
           fi
 
       - name: 📧 Enviar email da rechecagem
