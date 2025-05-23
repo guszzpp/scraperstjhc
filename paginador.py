@@ -10,9 +10,34 @@ def navegar_paginas_e_extrair(driver, wait, extrair_detalhes_processo, data_autu
     resultados = []
     relatorio_paginas = []
     pagina = 1
+    paginas_processadas = 0
+    total_resultados_site = None
+    paginas_total_previstas = None
+    resultados_por_pagina = None
 
     while True:
         relatorio = f"📄 Página {pagina}: "
+
+        # Na primeira página, tentar extrair o total de resultados do site
+        if pagina == 1:
+            try:
+                # O texto costuma ser algo como: "Exibindo 1–10 de 15"
+                info_element = driver.find_element(By.XPATH, "//*[contains(text(), 'Exibindo') and contains(text(), 'de')]")
+                info_text = info_element.text.strip()
+                import re
+                match = re.search(r"Exibindo (\d+)[–-](\d+) de (\d+)", info_text)
+                if match:
+                    inicio, fim, total = map(int, match.groups())
+                    total_resultados_site = total
+                    resultados_por_pagina = fim - inicio + 1
+                    # Cálculo do total de páginas previstas
+                    paginas_total_previstas = (total + resultados_por_pagina - 1) // resultados_por_pagina
+                else:
+                    total_resultados_site = None
+                    paginas_total_previstas = None
+            except Exception:
+                total_resultados_site = None
+                paginas_total_previstas = None
 
         try:
             blocos = wait.until(EC.presence_of_all_elements_located(
@@ -52,6 +77,7 @@ def navegar_paginas_e_extrair(driver, wait, extrair_detalhes_processo, data_autu
 
         relatorio += f"{len(blocos)} blocos analisados, {hc_na_pagina} HCs extraídos."
         relatorio_paginas.append(relatorio)
+        paginas_processadas += 1
 
         # Próxima página
         try:
@@ -67,4 +93,10 @@ def navegar_paginas_e_extrair(driver, wait, extrair_detalhes_processo, data_autu
             relatorio_paginas.append("⏹️ Fim da navegação: botão 'Próximo' não encontrado.")
             break
 
-    return resultados, relatorio_paginas
+    # Garantir que os valores não fiquem None
+    if total_resultados_site is None:
+        total_resultados_site = len(resultados)
+    if paginas_total_previstas is None:
+        paginas_total_previstas = paginas_processadas
+
+    return resultados, relatorio_paginas, total_resultados_site, paginas_total_previstas, paginas_processadas

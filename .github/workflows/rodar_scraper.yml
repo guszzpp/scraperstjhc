@@ -1,129 +1,243 @@
-name: Rodar scraper diariamente STJ (Origem TJGO)
+name: Pipeline HCs STJ/TJGO
 
 on:
   schedule:
-    - cron: '0 15 * * *'
-  workflow_dispatch:
+    - cron: '0 15 * * *'  # Executa diariamente às 12h de Brasília (15h UTC)
+  workflow_dispatch: {}
+
+env:
+  SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+  SUPABASE_BUCKET: ${{ secrets.SUPABASE_BUCKET }}
+  SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+  EMAIL_USER: ${{ secrets.EMAIL_USUARIO }}
+  EMAIL_PASS: ${{ secrets.EMAIL_SENHA }}
+  EMAIL_DESTINO: ${{ secrets.EMAIL_DESTINATARIO_TESTE }}
 
 jobs:
-  run-scraper:
+  diario:
+    name: Scraper Diário
     runs-on: ubuntu-latest
 
     steps:
-      - name: ⬇️ Clonar o repositório
+      - name: 📥 Checkout do código
         uses: actions/checkout@v4
 
-      - name: 🐍 Configurar Python
+      - name: 🐍 Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.10'
-          cache: 'pip'
+          python-version: '3.11'
 
-      - name: 📦 Instalar dependências Python
-        run: |
-          python -m pip install --upgrade pip
-          if [ -f requirements.txt ]; then
-            pip install -r requirements.txt
-          else
-            echo "::error::Arquivo requirements.txt não encontrado!"
-            exit 1
-          fi
+      - name: 📦 Instalar dependências
+        run: pip install -r requirements.txt
 
-      - name: 📅 Definir data de ontem
+      - name: 📁 Criar diretório de dados
+        run: mkdir -p dados_diarios
+
+      - name: 🗂️ Restaurar cache de dados
+        uses: actions/cache@v3
+        with:
+          path: dados_diarios
+          key: dados-diarios-${{ github.sha }}
+          restore-keys: dados-diarios-
+
+      - name: 📅 Definir datas
         id: data
         run: |
-          ONTE_DATA=$(date -d 'yesterday' +'%d/%m/%Y')
-          echo "Data de ontem definida como: $ONTE_DATA"
-          echo "ontem=$ONTE_DATA" >> $GITHUB_OUTPUT
+          ONTEM=$(date -d "yesterday" +"%d/%m/%Y")
+          ONTEM_FMT=$(date -d "yesterday" +"%d-%m-%Y")
+          echo "ontem=$ONTEM" >> $GITHUB_OUTPUT
+          echo "ontem_fmt=$ONTEM_FMT" >> $GITHUB_OUTPUT
 
-      - name: 🚀 Rodar o scraper Python
-        id: scraper
+      - name: 🔍 Rodar scraper principal
+        run: python main.py "${{ steps.data.outputs.ontem }}"
+
+      - name: 📂 Debug dos arquivos gerados
         run: |
-          echo "Executando script para a data: ${{ steps.data.outputs.ontem }}"
-          python main.py "${{ steps.data.outputs.ontem }}"
+          echo "Arquivos em dados_diarios:"
+          ls -lh dados_diarios || echo "Pasta dados_diarios não existe"
+          echo "Conteúdo de attachment.txt:"
+          cat attachment.txt || echo "attachment.txt não existe"
 
-      - name: Verificar inserções retroativas de HCs
-        if: success() && steps.scraper.outcome == 'success'
+      - name: ☁️ Upload para Supabase (se arquivo existir)
         run: |
-          echo "Iniciando verificação de HCs retroativos..."
-          python -m retroativos.integrador
-          
-      - name: ⚠️ Preparar e-mail de FALHA do Script
-        if: failure() && steps.scraper.outcome == 'failure'
-        id: falha_script
-        run: |
-          echo "::warning::O script Python falhou na execução!"
-          SUBJECT="❌ FALHA no Scraper STJ - ${{ steps.data.outputs.ontem }}"
-          BODY=$(cat <<EOF
-          Prezado(a),
-
-          Ocorreu uma FALHA durante a execução do script Python do scraper STJ (origem TJGO) para a data de ${{ steps.data.outputs.ontem }}.
-
-          O script não concluiu com sucesso (status de saída diferente de zero).
-
-          Por favor, verifique os logs detalhados da execução no GitHub Actions para identificar a causa raiz do problema.
-
-          Link para a execução: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-
-          Atenciosamente,
-          Sistema automatizado - GitHub Actions
-          EOF
-          )
-          echo "email_subject=$SUBJECT" >> $GITHUB_OUTPUT
-          echo "email_body<<EOF" >> $GITHUB_ENV
-          echo "$BODY" >> $GITHUB_ENV
-          echo "EOF" >> $GITHUB_ENV
-          echo "attachment_name=" >> $GITHUB_OUTPUT
-
-      - name: 📄 Preparar Dados do E-mail a Partir de Arquivos
-        if: success() || steps.scraper.outcome == 'success'
-        id: montar_corpo
-        run: |
-          echo "Lendo arquivos de texto gerados pelo Python..."
-
-          SUBJECT=$(cat email_subject.txt || echo "Relatório Scraper STJ - Arquivo de Assunto Ausente")
-          if [ -f email_body.txt ]; then
-            mapfile -t body_lines < email_body.txt
-            BODY=$(printf '%s\n' "${body_lines[@]}")
+          ARQ="dados_diarios/hc_tjgo_${{ steps.data.outputs.ontem_fmt }}.xlsx"
+          if [[ -f "$ARQ" ]]; then
+            python supabase/supabase_upload.py "$ARQ" "$(basename "$ARQ")"
           else
-            BODY="Erro crítico: Arquivo email_body.txt não encontrado."
-            echo "::error::$BODY"
+            echo "Arquivo $ARQ não encontrado. Upload ignorado."
           fi
-          ATTACHMENT_NAME=$(cat attachment.txt || echo "")
 
-          echo "Assunto lido: $SUBJECT"
-          echo "Nome do anexo lido: $ATTACHMENT_NAME"
-          echo "Corpo do e-mail lido (primeira linha): $(echo "$BODY" | head -n 1)"
+      - name: 📧 Preparar conteúdo do email
+        id: gerar_email
+        run: |
+          # Assunto
+          if [ -f "email_subject.txt" ]; then
+            echo "email_subject=$(<email_subject.txt)" >> $GITHUB_OUTPUT
+          else
+            echo "email_subject=Resultados da checagem de HCs STJ/TJGO - ${{ steps.data.outputs.ontem }}" >> $GITHUB_OUTPUT
+          fi
 
-          echo "Exportando variáveis para o passo de e-mail..."
-          echo "email_subject=$SUBJECT" >> $GITHUB_OUTPUT
-          echo "attachment_name=$ATTACHMENT_NAME" >> $GITHUB_OUTPUT
-          echo "email_body<<EOF" >> $GITHUB_ENV
-          echo "$BODY" >> $GITHUB_ENV
-          echo "EOF" >> $GITHUB_ENV
+          # Corpo
+          if [ -f "email_body.txt" ]; then
+            BODY=$(<email_body.txt)
+          else
+            BODY="<p>Execução concluída em ${{ steps.data.outputs.ontem }}.</p>"
+          fi
+          printf "email_body<<EOF\n%s\nEOF\n" "$BODY" >> $GITHUB_OUTPUT
 
-      - name: 📤 Enviar E-mail
-        if: always() && (steps.falha_script.outcome == 'success' || steps.montar_corpo.outcome == 'success')
+          # Anexo (fallback)
+          if [ -s "attachment.txt" ]; then
+            ATTACH=$(<attachment.txt)
+            if [ -f "$ATTACH" ]; then
+              echo "attachment_name=$ATTACH" >> $GITHUB_OUTPUT
+            else
+              echo "attachment_name=" >> $GITHUB_OUTPUT
+            fi
+          else
+            ALT_ANEXO="dados_diarios/hc_tjgo_${{ steps.data.outputs.ontem_fmt }}.xlsx"
+            if [ -f "$ALT_ANEXO" ]; then
+              echo "attachment_name=$ALT_ANEXO" >> $GITHUB_OUTPUT
+            else
+              echo "attachment_name=" >> $GITHUB_OUTPUT
+            fi
+          fi
+
+      - name: 📤 Enviar e-mail diário
         uses: dawidd6/action-send-mail@v3
         with:
           server_address: smtp.gmail.com
-          server_port: 465
-          username: ${{ secrets.EMAIL_USUARIO }}
-          password: ${{ secrets.EMAIL_SENHA }}
-          subject: ${{ steps.falha_script.outputs.email_subject || steps.montar_corpo.outputs.email_subject }}
-          body: ${{ env.email_body }}
-          to: ${{ secrets.EMAIL_DESTINATARIO }}
-          from: Automação STJ <${{ secrets.EMAIL_USUARIO }}>
-          attachments: ${{ steps.montar_corpo.outputs.attachment_name && format('{0}/{1}', github.workspace, steps.montar_corpo.outputs.attachment_name) || '' }}
+          server_port: 587
+          username: ${{ env.EMAIL_USER }}
+          password: ${{ env.EMAIL_PASS }}
+          subject: "${{ steps.gerar_email.outputs.email_subject }}"
+          html_body: "${{ steps.gerar_email.outputs.email_body }}"
+          to: ${{ env.EMAIL_DESTINO }}
+          from: "Checagem STJ HC <${{ env.EMAIL_USER }}>"
+          attachments: "${{ steps.gerar_email.outputs.attachment_name }}"
 
-      - name: 💾 Upload Arquivos Gerados (Debug)
-        if: always()
-        uses: actions/upload-artifact@v4
+  rechecagem:
+    name: Rechecagem Retroativa
+    needs: diario
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 Checkout do código
+        uses: actions/checkout@v4
+
+      - name: 🐍 Setup Python
+        uses: actions/setup-python@v5
         with:
-          name: arquivos-gerados-pelo-script
-          path: |
-            email_subject.txt
-            email_body.txt
-            attachment.txt
-            hc_tjgo_*.xlsx
-          if-no-files-found: ignore
+          python-version: '3.11'
+
+      - name: 📦 Instalar dependências
+        run: pip install -r requirements.txt
+
+      - name: 📁 Criar diretório de dados
+        run: mkdir -p dados_diarios
+
+      - name: 📅 Definir datas (retroativas)
+        id: datas_retro
+        run: |
+          ONTEM=$(date -d "yesterday" +"%d/%m/%Y")
+          ONTEM_FMT=$(date -d "yesterday" +"%d-%m-%Y")
+          ANTEONTEM=$(date -d "2 days ago" +"%d/%m/%Y")
+          ANTEONTEM_FMT=$(date -d "2 days ago" +"%d-%m-%Y")
+
+          echo "ontem=$ONTEM" >> $GITHUB_OUTPUT
+          echo "ontem_fmt=$ONTEM_FMT" >> $GITHUB_OUTPUT
+          echo "anteontem=$ANTEONTEM" >> $GITHUB_OUTPUT
+          echo "anteontem_fmt=$ANTEONTEM_FMT" >> $GITHUB_OUTPUT
+
+      - name: 🗂️ Restaurar cache de dados
+        uses: actions/cache@v3
+        with:
+          path: dados_diarios
+          key: dados-diarios-${{ github.sha }}
+          restore-keys: dados-diarios-
+
+      - name: 📂 Listar arquivos disponíveis
+        run: ls -lh dados_diarios/
+
+      - name: ⬇️ Baixar arquivo do dia da rechecagem (D-2)
+        run: |
+          ARQ="hc_tjgo_${{ steps.datas_retro.outputs.anteontem_fmt }}.xlsx"
+          DEST="dados_hoje/$ARQ"
+          mkdir -p dados_hoje
+          python supabase/supabase_download.py "$SUPABASE_URL" "$SUPABASE_BUCKET" "$ARQ" "$DEST"
+    
+      - name: 🔁 Raspagem atual de D-2 (para rechecagem)
+        run: |
+          python main.py "${{ steps.datas_retro.outputs.anteontem }}"
+        
+      - name: 🔄 Rodar script de rechecagem
+        run: |
+          python retroativos/rechecagem.py "${{ steps.datas_retro.outputs.anteontem }}"
+        continue-on-error: true
+
+      - name: 📋 Preparar arquivo de rechecagem
+        run: |
+          ARQ_SAIDA="dados_diarios/rechecagem_hc_tjgo_${{ steps.datas_retro.outputs.anteontem_fmt }}.xlsx"
+          if [ -f "tem_divergencia.txt" ] && grep -qx "true" tem_divergencia.txt; then
+            echo "Divergência detectada, copiando arquivo original"
+            cp "dados_diarios/hc_tjgo_${{ steps.datas_retro.outputs.anteontem_fmt }}.xlsx" "$ARQ_SAIDA" || echo "Erro ao copiar arquivo"
+          else
+            echo "Sem divergência, criando comparativo completo D-2 x D-1"
+            python supabase/criar_xlsx_comparativo.py \
+              "$ARQ_SAIDA" \
+              "dados_hoje/hc_tjgo_${{ steps.datas_retro.outputs.anteontem_fmt }}.xlsx" \
+              "dados_diarios/hc_tjgo_${{ steps.datas_retro.outputs.anteontem_fmt }}.xlsx"
+          fi
+
+      - name: ☁️ Upload resultado rechecagem
+        run: |
+          ARQ_SAIDA="dados_diarios/rechecagem_hc_tjgo_${{ steps.datas_retro.outputs.anteontem_fmt }}.xlsx"
+          if [ -f "$ARQ_SAIDA" ]; then
+            python supabase/supabase_upload.py "$ARQ_SAIDA" "$(basename "$ARQ_SAIDA")"
+          else
+            echo "Arquivo de rechecagem não encontrado."
+          fi
+
+      - name: 📧 Definir conteúdo do email retroativo
+        id: email_retro
+        run: |
+          ARQ_SAIDA="dados_diarios/rechecagem_hc_tjgo_${{ steps.datas_retro.outputs.anteontem_fmt }}.xlsx"
+
+          if [ -f "tem_divergencia.txt" ] && grep -qx "true" tem_divergencia.txt; then
+            echo "subject=🚨 Divergência na rechecagem STJ/TJGO - ${{ steps.datas_retro.outputs.anteontem }}" >> $GITHUB_OUTPUT
+
+            BODY_RETRO="Relatório de Rechecagem - ${{ steps.datas_retro.outputs.anteontem }}<br><br>\
+            Foi detectada uma <b>DIVERGÊNCIA</b> entre os arquivos de HCs do STJ com origem no TJGO.<br>\
+            Novos processos foram adicionados retroativamente.<br>\
+            O sistema identificou inserções tardias para o dia ${{ steps.datas_retro.outputs.anteontem }}.<br><br>\
+            Consulte o arquivo em anexo para mais detalhes.<br><br>\
+            ---<br>\
+            Este e-mail foi gerado automaticamente pelo sistema de rechecagem. Em caso de dúvidas, entre em contato com o administrador."
+
+            printf "email_body<<EOF\n%s\nEOF\n" "$BODY_RETRO" >> $GITHUB_OUTPUT
+            echo "attachment_name=$ARQ_SAIDA" >> $GITHUB_OUTPUT
+          else
+            echo "subject=ℹ️ Sem divergências na rechecagem STJ/TJGO - ${{ steps.datas_retro.outputs.anteontem }}" >> $GITHUB_OUTPUT
+
+            BODY_RETRO="Relatório de Rechecagem - ${{ steps.datas_retro.outputs.anteontem }}<br><br>\
+            Nenhum novo Habeas Corpus retroativo (autuado em data anterior, mas só detectado hoje) foi localizado no STJ com origem no TJGO.<br>\
+            A rechecagem realizada hoje se referiu ao dia ${{ steps.datas_retro.outputs.anteontem }}.<br>\
+            Não foram identificadas inserções tardias pelo sistema do STJ.<br><br>\
+            ---<br>\
+            Este e-mail foi gerado automaticamente pelo sistema de rechecagem. Em caso de dúvidas, entre em contato com o administrador."
+
+            printf "email_body<<EOF\n%s\nEOF\n" "$BODY_RETRO" >> $GITHUB_OUTPUT
+            echo "attachment_name=" >> $GITHUB_OUTPUT
+          fi
+
+      - name: 📧 Enviar email da rechecagem
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 587
+          username: ${{ env.EMAIL_USER }}
+          password: ${{ env.EMAIL_PASS }}
+          subject: "${{ steps.email_retro.outputs.subject }}"
+          html_body: "${{ steps.email_retro.outputs.email_body }}"
+          to: ${{ env.EMAIL_DESTINO }}
+          from: "Rechecagem STJ HC <${{ env.EMAIL_USER }}>"
+          attachments: "${{ steps.email_retro.outputs.attachment_name }}"

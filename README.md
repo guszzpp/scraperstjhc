@@ -1,4 +1,4 @@
-# Scraper de Habeas Corpus no STJ com Origem no TJGO
+# Scraper de HCs no STJ (Origem TJGO) 
 
 Este projeto automatiza a busca por **Habeas Corpus (HCs)** no site do Superior Tribunal de Justiça (STJ), especificamente aqueles com **origem no Tribunal de Justiça de Goiás (TJGO)**. Os resultados encontrados são extraídos, processados e exportados para uma planilha Excel (`.xlsx`). A execução pode ser manual ou agendada automaticamente via GitHub Actions, com envio de um relatório por e-mail.
 
@@ -145,23 +145,19 @@ Um e-mail será enviado ao `EMAIL_DESTINATARIO` após cada execução agendada o
 
 ---
 
-##  Atualizações Recentes
+##  Melhorias Futuras
 
-###  ## Funcionalidade de Verificação Retroativa de HCs
+###  Verificação de Processos Inseridos Retroativamente
 
-O projeto agora conta com um sistema automatizado para detectar **inserções retroativas de Habeas Corpus** pelo STJ, ou seja, situações em que um HC é incluído no sistema com data anterior à data da execução automatizada.
+Pretende-se implementar uma funcionalidade que detecte **inserções retroativas de processos** pelo STJ — isto é, situações em que um HC com data anterior à busca automatizada do dia anterior aparece somente posteriormente nos resultados da pesquisa.
 
-### Como funciona:
+A solução proposta envolverá a **armazenagem de estado dos resultados anteriores em um repositório Git separado (ou em uma branch auxiliar)**, onde cada execução do scraper salvará os resultados do dia (em `.csv` ou `.txt`). Na execução seguinte, o script fará o seguinte fluxo:
 
-1. A cada execução, os resultados extraídos são salvos em um arquivo `.txt` contendo os números dos processos encontrados.
-2. Esse arquivo é versionado automaticamente em um repositório auxiliar (ou branch separada), mantendo o histórico diário dos resultados.
-3. Na execução seguinte, o script compara os dados atuais com os do dia anterior.
-4. Se forem identificados novos HCs com data retroativa (por exemplo, do dia anterior ou anteontem), é gerado um **alerta por e-mail adicional** ao usuário.
-5. O histórico é atualizado com os dados mais recentes, assegurando rastreabilidade e controle contínuo.
-
-Essa abordagem permite identificar lacunas ou inclusões tardias no sistema de jurisprudência do STJ, fornecendo um instrumento de verificação complementar para fins de controle institucional.
-
-Toda a lógica de comparação é feita no Python, com geração de arquivos intermediários simples (.txt), e o workflow do GitHub Actions se limita à execução e leitura desses arquivos, sem necessidade de manipulação de JSONs complexos dentro do YAML.
+1. Buscar os dados do dia atual.
+2. Recuperar os dados da execução anterior a partir do repositório/branch auxiliar.
+3. Comparar os dois conjuntos de dados.
+4. Se houver diferença (ex: HC novo com data de ontem ou anteontem), um **e-mail adicional de alerta será disparado** ao usuário.
+5. O repositório auxiliar será então atualizado com os dados mais recentes.
 
 ###  Justificativa Técnica
 

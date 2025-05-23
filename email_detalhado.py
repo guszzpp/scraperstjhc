@@ -1,59 +1,123 @@
-import smtplib
 import os
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
+import smtplib
+from datetime import date, datetime, timedelta
+from pathlib import Path
+from email.message import EmailMessage
+from email.mime.application import MIMEApplication
+from textwrap import dedent
+import logging
 import pandas as pd
-from datetime import datetime
 
-def enviar_email_alerta_novos_retroativos(retroativos: pd.DataFrame):
-    """
-    Envia um e-mail de alerta com os HCs detectados com data de julgamento
-    anterior à última execução.
-    """
-    if retroativos.empty:
-        return
+def enviar_email(assunto, corpo_html, anexo=None):
+    EMAIL_USER = os.getenv("EMAIL_USER")
+    EMAIL_PASS = os.getenv("EMAIL_PASS")
+    DESTINATARIO = os.getenv("EMAIL_DESTINATARIO_TESTE")
 
-    # Variáveis de ambiente (injetadas via GitHub Secrets)
-    remetente = os.getenv("EMAIL_USUARIO")
-    destinatarios_raw = os.getenv("EMAIL_DESTINATARIO", "")
-    senha = os.getenv("EMAIL_SENHA")
+    if not (EMAIL_USER and EMAIL_PASS and DESTINATARIO):
+        raise ValueError("Credenciais ou destinatário de e-mail não definidos nas variáveis de ambiente.")
 
-    if not remetente or not senha or not destinatarios_raw:
-        print("❌ Variáveis de ambiente não definidas corretamente.")
-        return
-
-    destinatarios = [email.strip() for email in destinatarios_raw.split(",") if email.strip()]
-
-    assunto = f"[ALERTA] Novos HCs retroativos detectados – {datetime.now().strftime('%d/%m/%Y')}"
-
-    corpo = "<p>Foram detectados novos Habeas Corpus com datas de julgamento anteriores à última execução automatizada:</p>"
-    corpo += "<table border='1' cellpadding='5' cellspacing='0'>"
-    corpo += "<tr><th>Número do Processo</th><th>Data de Julgamento</th><th>Órgão Julgador</th><th>Relator</th></tr>"
-
-    for _, row in retroativos.iterrows():
-        corpo += (
-            f"<tr>"
-            f"<td>{row.get('numero_processo', '')}</td>"
-            f"<td>{row.get('data_julgamento', '')}</td>"
-            f"<td>{row.get('orgao_julgador', '')}</td>"
-            f"<td>{row.get('relator', '')}</td>"
-            f"</tr>"
-        )
-    corpo += "</table><p>Recomenda-se verificação manual para confirmação.</p>"
-
-    # Montar o e-mail
-    msg = MIMEMultipart()
-    msg["From"] = remetente
-    msg["To"] = ", ".join(destinatarios)
+    msg = EmailMessage()
     msg["Subject"] = assunto
-    msg.attach(MIMEText(corpo, "html"))
+    msg["From"] = EMAIL_USER
+    msg["To"] = DESTINATARIO
+    msg.set_content("Este e-mail requer um cliente compatível com HTML.")
+    body_formatado = corpo_html.replace("\n", "<br>")
+    msg.add_alternative(body_formatado, subtype='html')
+    if anexo and os.path.exists(anexo):
+        with open(anexo, "rb") as f:
+            part = MIMEApplication(f.read(), Name=os.path.basename(anexo))
+        part['Content-Disposition'] = f'attachment; filename="{os.path.basename(anexo)}"'
+        msg.attach(part)
 
-    # Enviar
+    with smtplib.SMTP("smtp.gmail.com", 587) as smtp:
+        smtp.starttls()
+        smtp.login(EMAIL_USER, EMAIL_PASS)
+        smtp.send_message(msg)
+
+    print(f"E-mail enviado para {DESTINATARIO}")
+
+
+def preparar_email_relatorio_diario(
+    data_busca,
+    caminho_arquivo=None,
+    mensagem_status=None,
+    erros=None,
+    total_site=0,
+    total_extraidos=0,
+    paginas_processadas=0,
+    paginas_total=0,
+    horario_finalizacao="",
+    duracao_segundos=0.0,
+    nome_arquivo=""
+):
+    hoje = date.today()
+
     try:
-        with smtplib.SMTP("smtp.gmail.com", 587) as server:
-            server.starttls()
-            server.login(remetente, senha)
-            server.sendmail(remetente, destinatarios, msg.as_string())
-            print("✅ Alerta de retroativos enviado com sucesso.")
+        tem_anexo = bool(caminho_arquivo and os.path.exists(caminho_arquivo))
+
+        if erros:
+            erros_str = "\n".join(f"- {e}" for e in erros)
+            subject = f"⚠️ Alerta: Erros na checagem de HCs STJ/TJGO - {data_busca}"
+            body = dedent(f"""
+                Prezado(a),
+
+                Tivemos erros na execução para {data_busca}:
+
+                {erros_str}
+
+                Atenciosamente,
+                Sistema automatizado
+            """)
+
+        elif tem_anexo:
+            subject = f"✅ Resultados da checagem de HCs STJ/TJGO - {data_busca}"
+            body = dedent(f"""
+                Prezado(a),
+
+                Segue em anexo o relatório de Habeas Corpus (HCs) autuados no STJ,
+                com origem no TJGO, referente a {data_busca}.
+
+                Resumo da execução:
+                - Resultados encontrados pelo site: {total_site}
+                - HCs efetivamente extraídos: {total_extraidos}
+                - Páginas processadas: {paginas_processadas} de {paginas_total}
+                - Script finalizado em: {horario_finalizacao} (duração {duracao_segundos:.2f}s)
+
+                O arquivo '{nome_arquivo}' está anexado a este e-mail.
+
+                Atenciosamente,
+                Sistema automatizado
+            """)
+
+        else:
+            subject = f"ℹ️ Nenhum HC encontrado na checagem STJ/TJGO - {data_busca}"
+            body = dedent(f"""
+                Prezado(a),
+
+                Nenhum Habeas Corpus foi encontrado no STJ com origem no TJGO
+                para a data {data_busca}.
+
+                Resumo da execução:
+                - Resultados encontrados pelo site: {total_site}
+                - HCs efetivamente extraídos: {total_extraidos}
+                - Páginas processadas: {paginas_processadas} de {paginas_total}
+                - Script finalizado em: {horario_finalizacao} (duração {duracao_segundos:.2f}s)
+
+                Atenciosamente,
+                Sistema automatizado
+            """)
+
+        # --- gravação dos arquivos que serão lidos pelo main.py ---
+        Path("email_subject.txt").write_text(subject, encoding="utf-8")
+        Path("email_body.txt").write_text(body.replace("\n", "<br>"), encoding="utf-8")
+        Path("attachment.txt").write_text(caminho_arquivo if tem_anexo else "", encoding="utf-8")
+
     except Exception as e:
-        print(f"❌ Erro ao enviar e-mail de retroativos: {e}")
+        logging.error("Erro ao preparar arquivos de e-mail para relatório diário", exc_info=True)
+        Path("email_subject.txt").write_text("🛑 Erro ao gerar e-mail de relatório diário", encoding="utf-8")
+        Path("email_body.txt").write_text(
+            "<p><strong>🛑 ERRO NO SISTEMA</strong></p>"
+            "<p>O scraper foi executado, mas houve falha ao gerar os arquivos de e-mail. Verifique os logs.</p>",
+            encoding="utf-8"
+        )
+        Path("attachment.txt").write_text("", encoding="utf-8")
