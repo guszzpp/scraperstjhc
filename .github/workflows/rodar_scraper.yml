@@ -11,7 +11,7 @@ env:
   SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
   EMAIL_USER: ${{ secrets.EMAIL_USUARIO }}
   EMAIL_PASS: ${{ secrets.EMAIL_SENHA }}
-  EMAIL_DESTINO: ${{ secrets.EMAIL_DESTINATARIO_TESTE }}
+  EMAIL_DESTINO: ${{ secrets.EMAIL_DESTINATARIO }}
 
 jobs:
   diario:
