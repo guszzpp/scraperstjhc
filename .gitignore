@@ -1,0 +1,40 @@
+# =====================
+# Ignorar arquivos e pastas indesejadas no repositório Git
+# =====================
+
+# Bytecode e caches do Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Ambientes virtuais
+venv/
+.venv/
+__pypackages__/
+pip-wheel-metadata/
+
+# Cache de ferramentas
+.mypy_cache/
+
+# Logs e arquivos temporários
+*.log
+*.tmp
+*.bak
+*.swp
+*~
+
+# Configurações de IDEs/editors
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# Arquivos de sistema
+.DS_Store
+Thumbs.db
+
+# Arquivos de credenciais e variáveis de ambiente
+.env
+*.env
+.secrets/
+.secrets
