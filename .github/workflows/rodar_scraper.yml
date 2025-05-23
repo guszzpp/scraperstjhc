@@ -181,8 +181,11 @@ jobs:
             echo "Divergência detectada, copiando arquivo original"
             cp "dados_diarios/hc_tjgo_${{ steps.datas_retro.outputs.anteontem_fmt }}.xlsx" "$ARQ_SAIDA" || echo "Erro ao copiar arquivo"
           else
-            echo "Sem divergência, criando arquivo vazio"
-            python supabase/criar_xlsx_vazio.py "$ARQ_SAIDA"
+            echo "Sem divergência, criando comparativo completo D-2 x D-1"
+            python supabase/criar_xlsx_comparativo.py \
+              "$ARQ_SAIDA" \
+              "dados_hoje/hc_tjgo_${{ steps.datas_retro.outputs.anteontem_fmt }}.xlsx" \
+              "dados_diarios/hc_tjgo_${{ steps.datas_retro.outputs.anteontem_fmt }}.xlsx"
           fi
 
       - name: ☁️ Upload resultado rechecagem
