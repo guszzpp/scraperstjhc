@@ -43,8 +43,8 @@ jobs:
       - name: 📅 Definir datas
         id: data
         run: |
-          ONTEM=$(date -d "yesterday" +"%d/%m/%Y")
-          ONTEM_FMT=$(date -d "yesterday" +"%d-%m-%Y")
+          ONTEM=$(TZ=America/Sao_Paulo date -d "yesterday" +"%d/%m/%Y")
+          ONTEM_FMT=$(TZ=America/Sao_Paulo date -d "yesterday" +"%d-%m-%Y")
           echo "ontem=$ONTEM" >> $GITHUB_OUTPUT
           echo "ontem_fmt=$ONTEM_FMT" >> $GITHUB_OUTPUT
 
