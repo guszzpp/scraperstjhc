@@ -165,6 +165,10 @@ jobs:
           mkdir -p dados_hoje
           python supabase/supabase_download.py "$SUPABASE_URL" "$SUPABASE_BUCKET" "$ARQ" "$DEST"
     
+      - name: 🔁 Raspagem atual de D-2 (para rechecagem)
+        run: |
+          python main.py "${{ steps.datas_retro.outputs.anteontem }}"
+
       - name: 📝 Garantir arquivo D-2 (vazio se necessário)
         run: |
           ARQ="dados_diarios/hc_tjgo_${{ steps.datas_retro.outputs.anteontem_fmt }}.xlsx"
@@ -172,10 +176,6 @@ jobs:
             echo "Arquivo D-2 não existe, criando Excel vazio para evitar erro no comparativo"
             python supabase/criar_xlsx_vazio.py "$ARQ"
           fi
-
-      - name: 🔁 Raspagem atual de D-2 (para rechecagem)
-        run: |
-          python main.py "${{ steps.datas_retro.outputs.anteontem }}"
 
       - name: 🔄 Rodar script de rechecagem
         run: |
