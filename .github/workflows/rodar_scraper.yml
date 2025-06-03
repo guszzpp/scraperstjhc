@@ -165,13 +165,12 @@ jobs:
           mkdir -p dados_hoje
           python supabase/supabase_download.py "$SUPABASE_URL" "$SUPABASE_BUCKET" "$ARQ" "$DEST"
     
-      - name: 📝 Garantir arquivo de hoje (vazio se necessário)
+      - name: 📝 Garantir arquivo D-2 (vazio se necessário)
         run: |
-          ARQ="hc_tjgo_${{ steps.datas_retro.outputs.anteontem_fmt }}.xlsx"
-          DEST="dados_hoje/$ARQ"
-          if [ ! -f "$DEST" ]; then
-            echo "Arquivo de hoje não existe, criando Excel vazio para evitar erro no comparativo"
-            python supabase/criar_xlsx_vazio.py "$DEST"
+          ARQ="dados_diarios/hc_tjgo_${{ steps.datas_retro.outputs.anteontem_fmt }}.xlsx"
+          if [ ! -f "$ARQ" ]; then
+            echo "Arquivo D-2 não existe, criando Excel vazio para evitar erro no comparativo"
+            python supabase/criar_xlsx_vazio.py "$ARQ"
           fi
 
       - name: 🔁 Raspagem atual de D-2 (para rechecagem)
