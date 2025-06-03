@@ -7,6 +7,8 @@ import pandas as pd
 from datetime import datetime
 from supabase.supabase_download import download_from_supabase
 import logging
+from dotenv import load_dotenv
+load_dotenv()
 
 # Configuração básica de logging
 logging.basicConfig(level=logging.INFO)
@@ -56,7 +58,22 @@ def rechecagem_retroativa(data_referencia_str):
             df_antigo = pd.DataFrame()
 
     # 2. Carrega o arquivo raspado hoje (espera-se que ele já esteja salvo localmente)
-    df_novo = carregar_arquivo(arquivo_hoje)
+    try:
+        df_novo = carregar_arquivo(arquivo_hoje)
+    except Exception as e:
+        log(f"Arquivo de hoje não encontrado. Considerando resultado original como vazio.")
+        df_novo = pd.DataFrame(columns=[
+            "Número do Processo", "Classe", "Data Autuação", "Origem",
+            "Relator", "Órgão Julgador", "Data Julgamento", "Data Publicação"
+        ])
+
+    # Se o arquivo de hoje não existe, df_novo será DataFrame vazio
+    if not os.path.exists(arquivo_hoje):
+        log("Arquivo de hoje não existe. Considerando resultado original como vazio.")
+        df_novo = pd.DataFrame(columns=[
+            "Número do Processo", "Classe", "Data Autuação", "Origem",
+            "Relator", "Órgão Julgador", "Data Julgamento", "Data Publicação"
+        ])
 
     # --- NOVA LÓGICA: Se não há arquivo antigo, mas há resultados hoje, todos são retroativos ---
     if df_antigo.empty and not df_novo.empty:
