@@ -42,8 +42,8 @@ def download_from_supabase(supabase_url, bucket_name, file_name, destination_pat
             print(f"Arquivo '{file_name}' baixado com sucesso para '{destination_path}'.")
         except Exception as e:
              raise Exception(f"Erro ao salvar o arquivo '{destination_path}': {e}")
-    elif response.status_code == 404:
-        print(f"Arquivo '{file_name}' não encontrado no Supabase (404). Isso pode ser esperado se não houve resultado na data.")
+    elif response.status_code == 404 or (response.status_code == 400 and 'Object not found' in response.text):
+        print(f"Arquivo '{file_name}' não encontrado no Supabase (404/400). Isso pode ser esperado se não houve resultado na data.")
         sys.exit(0)
     else:
         # Imprimir mais detalhes do erro
