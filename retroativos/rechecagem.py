@@ -36,7 +36,6 @@ def rechecagem_retroativa(data_referencia_str):
         if not supabase_url:
             log("Erro: SUPABASE_URL não definida nas variáveis de ambiente")
             supabase_url = "https://example.supabase.co"  # Valor padrão para evitar erros
-            
         download_from_supabase(
             supabase_url=supabase_url,              # CORRIGIDO: URL base do Supabase
             bucket_name="hctjgo",                   # CORRIGIDO: Nome do bucket
@@ -58,6 +57,15 @@ def rechecagem_retroativa(data_referencia_str):
 
     # 2. Carrega o arquivo raspado hoje (espera-se que ele já esteja salvo localmente)
     df_novo = carregar_arquivo(arquivo_hoje)
+
+    # --- NOVA LÓGICA: Se não há arquivo antigo, mas há resultados hoje, todos são retroativos ---
+    if df_antigo.empty and not df_novo.empty:
+        log("Arquivo antigo não existe ou está vazio, mas há resultados hoje. Todos são considerados retroativos.")
+        preparar_email_com_divergencia(data_ref, df_novo)
+        df_novo.to_excel("novos_retroativos.xlsx", index=False)
+        with open("attachment.txt", "w", encoding="utf-8") as f:
+            f.write("novos_retroativos.xlsx")
+        return
 
     if df_novo.empty and df_antigo.empty:
         log("Ambos os arquivos estão vazios. Nenhum HC detectado. Nada será enviado.")
