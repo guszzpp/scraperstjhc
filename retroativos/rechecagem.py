@@ -26,38 +26,39 @@ def rechecagem_retroativa(data_referencia_str):
     nome_data = data_ref.strftime("%d-%m-%Y")
 
     nome_arquivo = f"hc_tjgo_{nome_data}.xlsx"
-    caminho_local = f"dados_diarios/{nome_arquivo}"
-    arquivo_hoje = f"dados_hoje/hc_tjgo_{nome_data}.xlsx"
+    caminho_local_antigo = f"dados_diarios/{nome_arquivo}"
+    caminho_local_novo = f"dados_hoje/hc_tjgo_{nome_data}.xlsx"
 
-    # 1. Tenta baixar do Supabase - IMPORTANTE: Correção dos parâmetros aqui
+    # 1. Baixar do Supabase o arquivo de D-2 gerado ontem (arquivo antigo)
     try:
-        # Verificar variáveis de ambiente
         supabase_url = os.getenv("SUPABASE_URL")
         if not supabase_url:
             log("Erro: SUPABASE_URL não definida nas variáveis de ambiente")
-            supabase_url = "https://example.supabase.co"  # Valor padrão para evitar erros
-            
+            supabase_url = "https://example.supabase.co"
         download_from_supabase(
-            supabase_url=supabase_url,              # CORRIGIDO: URL base do Supabase
-            bucket_name="hctjgo",                   # CORRIGIDO: Nome do bucket
-            file_name=nome_arquivo,                 # Nome do arquivo no bucket
-            destination_path=caminho_local          # CORRIGIDO: Caminho local para salvar
+            supabase_url=supabase_url,
+            bucket_name="hctjgo",
+            file_name=nome_arquivo,
+            destination_path=caminho_local_antigo
         )
         log(f"Arquivo original encontrado no Supabase.")
-        df_antigo = carregar_arquivo(caminho_local)
+        df_antigo = carregar_arquivo(caminho_local_antigo)
+        motivo_ausencia = None
     except Exception as e:
-        if "Object not found" in str(e):
-            log("Arquivo não encontrado no Supabase. Considerando base antiga como vazia.")
+        if "Object not found" in str(e) or "404" in str(e):
+            log(f"Arquivo de D-2 não encontrado no Supabase: {nome_arquivo}. Considerando base antiga como vazia.")
+            motivo_ausencia = f"[AVISO] Não foi possível baixar o arquivo de D-2 ({nome_arquivo}) do Supabase. Presumindo que ontem não havia HCs para essa data."
             df_antigo = pd.DataFrame(columns=[
                 "Número do Processo", "Classe", "Data Autuação", "Origem",
                 "Relator", "Órgão Julgador", "Data Julgamento", "Data Publicação"
             ])
         else:
             log(f"Erro ao baixar arquivo do Supabase: {str(e)}")
+            motivo_ausencia = f"[ERRO] Falha ao baixar o arquivo de D-2 ({nome_arquivo}) do Supabase: {str(e)}"
             df_antigo = pd.DataFrame()
 
-    # 2. Carrega o arquivo raspado hoje (espera-se que ele já esteja salvo localmente)
-    df_novo = carregar_arquivo(arquivo_hoje)
+    # 2. Carrega o arquivo raspado hoje (rechecagem de D-2)
+    df_novo = carregar_arquivo(caminho_local_novo)
 
     if df_novo.empty and df_antigo.empty:
         log("Ambos os arquivos estão vazios. Nenhum HC detectado. Nada será enviado.")
@@ -87,6 +88,8 @@ def rechecagem_retroativa(data_referencia_str):
 
     if tem_divergencia:
         log("Divergências detectadas:")
+        if motivo_ausencia:
+            log(motivo_ausencia)
         if not novos.empty:
             log(f"- {len(novos)} novos HCs retroativos")
             novos.to_excel("novos_retroativos.xlsx", index=False)
@@ -97,16 +100,18 @@ def rechecagem_retroativa(data_referencia_str):
             log(f"- {len(alteracoes)} alterações em campos")
             pd.DataFrame(alteracoes).to_excel("hcs_alterados.xlsx", index=False)
 
-        preparar_email_com_divergencia(data_ref, novos)
+        preparar_email_com_divergencia(data_ref, novos, motivo_ausencia)
         with open("attachment.txt", "w", encoding="utf-8") as f:
             f.write("novos_retroativos.xlsx" if not novos.empty else "")
     else:
+        if motivo_ausencia:
+            log(motivo_ausencia)
         log("Nenhuma divergência detectada.")
-        preparar_email_vazio(data_ref)
+        preparar_email_vazio(data_ref, motivo_ausencia)
         with open("attachment.txt", "w", encoding="utf-8") as f:
             f.write("")
 
-def preparar_email_com_divergencia(data_ref, df_novos):
+def preparar_email_com_divergencia(data_ref, df_novos, motivo_ausencia=None):
     data_formatada = data_ref.strftime("%d/%m/%Y")
     hoje = datetime.today().strftime("%d/%m/%Y")
 
@@ -114,13 +119,16 @@ def preparar_email_com_divergencia(data_ref, df_novos):
         f.write(f"[RECHECAGEM RETROATIVA] Novos HCs detectados para {data_formatada}")
 
     with open("email_body.txt", "w", encoding="utf-8") as f:
-        f.write(
+        corpo = (
             f"⚖️ Foram detectados {len(df_novos)} novos Habeas Corpus retroativos — "
             f"autuados originalmente em {data_formatada}, mas não detectados na raspagem original.\n\n"
             f"A rechecagem foi realizada hoje, {hoje}."
         )
+        if motivo_ausencia:
+            corpo += f"\n\n{motivo_ausencia}"
+        f.write(corpo)
 
-def preparar_email_vazio(data_ref):
+def preparar_email_vazio(data_ref, motivo_ausencia=None):
     data_formatada = data_ref.strftime("%d/%m/%Y")
     hoje = datetime.today().strftime("%d/%m/%Y")
 
@@ -128,10 +136,13 @@ def preparar_email_vazio(data_ref):
         f.write("Nenhum novo HC retroativo detectado")
 
     with open("email_body.txt", "w", encoding="utf-8") as f:
-        f.write(
+        corpo = (
             f"Nenhum novo Habeas Corpus retroativo (autuado em data anterior, mas só detectado hoje) "
             f"foi localizado no STJ com origem no TJGO, na rechecagem realizada em {hoje} para o dia {data_formatada}."
         )
+        if motivo_ausencia:
+            corpo += f"\n\n{motivo_ausencia}"
+        f.write(corpo)
 
 if __name__ == "__main__":
     if len(sys.argv) != 2:
