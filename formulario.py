@@ -7,6 +7,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException, WebDriverException, NoSuchElementException
 from config import URL_PESQUISA, ORGAO_ORIGEM
+from selenium.webdriver.chrome.options import Options
 
 # Definição da função click_and_wait
 def click_and_wait(driver, wait, button_locator, result_locator, retries=3, delay=5):
@@ -135,3 +136,8 @@ def preencher_formulario(driver, wait, data_inicial, data_final):
         raise TimeoutException("Falha ao clicar em Pesquisar e obter resultados após múltiplas tentativas.")
 
     logging.info("Preenchimento do formulário e espera pós-pesquisa concluídos.")
+
+# Configuração das opções do Chrome
+options = Options()
+options.add_argument("--disable-blink-features=AutomationControlled")
+options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36")
