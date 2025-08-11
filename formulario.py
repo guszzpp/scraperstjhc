@@ -72,8 +72,39 @@ def preencher_formulario(driver, wait, data_inicial, data_final):
     """
     logging.info("Acessando URL de pesquisa...")
     driver.get(URL_PESQUISA)
-    # Usar um wait mais curto para o primeiro elemento, a página deve carregar rápido
-    WebDriverWait(driver, 45).until(EC.presence_of_element_located((By.ID, "idDataAutuacaoInicial")))
+    
+    # Aguardar página carregar completamente
+    logging.info("Aguardando carregamento da página...")
+    time.sleep(3)  # Pausa inicial para carregamento
+    
+    # Tentar múltiplas estratégias para detectar se a página carregou
+    try:
+        # Estratégia 1: Elemento principal do formulário
+        WebDriverWait(driver, 30).until(EC.presence_of_element_located((By.ID, "idDataAutuacaoInicial")))
+        logging.info("✅ Página carregada (estratégia 1).")
+    except TimeoutException:
+        try:
+            # Estratégia 2: Verificar se a página tem conteúdo
+            WebDriverWait(driver, 15).until(lambda d: d.execute_script("return document.readyState") == "complete")
+            logging.info("✅ Página carregada (estratégia 2 - readyState).")
+        except TimeoutException:
+            try:
+                # Estratégia 3: Verificar título da página
+                WebDriverWait(driver, 10).until(lambda d: "STJ" in d.title)
+                logging.info("✅ Página carregada (estratégia 3 - título).")
+            except TimeoutException:
+                logging.error("❌ Falha ao carregar página após múltiplas tentativas.")
+                # Capturar screenshot para debug
+                try:
+                    screenshot_path = f"error_screenshot_{int(time.time())}.png"
+                    driver.save_screenshot(screenshot_path)
+                    logging.info(f"📸 Screenshot salvo: {screenshot_path}")
+                    logging.info(f"📄 Título da página: {driver.title}")
+                    logging.info(f"🌐 URL atual: {driver.current_url}")
+                except Exception as e:
+                    logging.error(f"❌ Erro ao capturar screenshot: {e}")
+                raise TimeoutException("Página não carregou no tempo esperado")
+    
     logging.info("Página carregada. Preenchendo datas...")
 
     # Datas
