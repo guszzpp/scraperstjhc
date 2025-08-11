@@ -47,7 +47,7 @@ jobs:
           google-chrome --version
           
           # Instalar dependências adicionais que podem ser necessárias
-          sudo apt-get install -y xvfb libxi6 libgconf-2-4
+          sudo apt-get install -y xvfb libxi6
 
       - name: 📦 Instalar dependências Python
         run: pip install -r requirements.txt
@@ -171,7 +171,7 @@ jobs:
           google-chrome --version
           
           # Instalar dependências adicionais que podem ser necessárias
-          sudo apt-get install -y xvfb libxi6 libgconf-2-4
+          sudo apt-get install -y xvfb libxi6
 
       - name: 📦 Instalar dependências Python
         run: pip install -r requirements.txt
