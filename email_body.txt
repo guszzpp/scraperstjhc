@@ -1,0 +1,3 @@
+⚖️ Foram detectados 6 novos Habeas Corpus retroativos — autuados originalmente em 21/05/2025, mas não detectados na primeira raspagem (D+1).
+
+A rechecagem foi realizada hoje, 11/08/2025, comparando D+1 vs D+2.
