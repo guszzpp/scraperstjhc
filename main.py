@@ -52,6 +52,15 @@ def listar_arquivos_com_detalhes(pasta):
 def main(data_referencia: str):
     erros = []
     inicio = datetime.now()
+    
+    # Inicializar variáveis com valores padrão
+    resultados = []
+    paginas_info = []
+    total_resultados_site = 0
+    paginas_total_previstas = 0
+    paginas_processadas = 0
+    caminho_excel = None
+    mensagem_status = ""
 
     try:
         logging.info("🚀 Iniciando scraper de HCs STJ (Origem TJGO)")
@@ -76,7 +85,6 @@ def main(data_referencia: str):
             for info in paginas_info:
                 logging.info(info)
 
-            caminho_excel = None
             if resultados:
                 logging.info(f"✅ {len(resultados)} HCs encontrados.")
                 df = pd.DataFrame(resultados)
@@ -89,12 +97,10 @@ def main(data_referencia: str):
             else:
                 logging.info("ℹ️ Nenhum HC encontrado.")
                 mensagem_status = f"Nenhum Habeas Corpus foi encontrado no STJ com origem no TJGO para a data {data_referencia}."
-                caminho_excel = None
 
         except Exception as e:
             logging.error(f"❌ Erro no scraper: {e}", exc_info=True)
             erros.append(str(e))
-            caminho_excel = None
             mensagem_status = f"Ocorreu um erro durante a execução: {str(e)}"
 
         finally:
