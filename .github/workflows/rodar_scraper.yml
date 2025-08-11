@@ -27,7 +27,29 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: 📦 Instalar dependências
+      - name: 🌐 Instalar Chrome e dependências
+        run: |
+          # Atualizar lista de pacotes
+          sudo apt-get update
+          
+          # Instalar dependências necessárias para o Chrome
+          sudo apt-get install -y wget gnupg2
+          
+          # Adicionar repositório do Google Chrome
+          wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | sudo apt-key add -
+          echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" | sudo tee /etc/apt/sources.list.d/google-chrome.list
+          
+          # Atualizar e instalar Chrome
+          sudo apt-get update
+          sudo apt-get install -y google-chrome-stable
+          
+          # Verificar instalação
+          google-chrome --version
+          
+          # Instalar dependências adicionais que podem ser necessárias
+          sudo apt-get install -y xvfb libxi6 libgconf-2-4
+
+      - name: 📦 Instalar dependências Python
         run: pip install -r requirements.txt
 
       - name: 📁 Criar diretório de dados
@@ -129,7 +151,29 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: 📦 Instalar dependências
+      - name: 🌐 Instalar Chrome e dependências
+        run: |
+          # Atualizar lista de pacotes
+          sudo apt-get update
+          
+          # Instalar dependências necessárias para o Chrome
+          sudo apt-get install -y wget gnupg2
+          
+          # Adicionar repositório do Google Chrome
+          wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | sudo apt-key add -
+          echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" | sudo tee /etc/apt/sources.list.d/google-chrome.list
+          
+          # Atualizar e instalar Chrome
+          sudo apt-get update
+          sudo apt-get install -y google-chrome-stable
+          
+          # Verificar instalação
+          google-chrome --version
+          
+          # Instalar dependências adicionais que podem ser necessárias
+          sudo apt-get install -y xvfb libxi6 libgconf-2-4
+
+      - name: 📦 Instalar dependências Python
         run: pip install -r requirements.txt
 
       - name: 📁 Criar diretório de dados

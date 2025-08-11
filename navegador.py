@@ -21,7 +21,31 @@ def iniciar_navegador():
         )
         if not chrome_cmd:
             logging.error("Chrome não encontrado no PATH.")
-            raise Exception("Chrome não está instalado ou não pode ser executado")
+            # Tentar instalar Chrome automaticamente no Linux
+            if os.name == 'posix':
+                logging.info("Tentando instalar Chrome automaticamente...")
+                try:
+                    subprocess.run(['sudo', 'apt-get', 'update'], check=True)
+                    subprocess.run(['sudo', 'apt-get', 'install', '-y', 'wget', 'gnupg2'], check=True)
+                    subprocess.run(['wget', '-q', '-O', '-', 'https://dl.google.com/linux/linux_signing_key.pub'], 
+                                 stdout=subprocess.PIPE, check=True)
+                    subprocess.run(['sudo', 'apt-key', 'add', '-'], input=subprocess.run(
+                        ['wget', '-q', '-O', '-', 'https://dl.google.com/linux/linux_signing_key.pub'], 
+                        capture_output=True, text=True, check=True).stdout.encode(), check=True)
+                    subprocess.run(['echo', 'deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main'], 
+                                 stdout=open('/etc/apt/sources.list.d/google-chrome.list', 'w'), check=True)
+                    subprocess.run(['sudo', 'apt-get', 'update'], check=True)
+                    subprocess.run(['sudo', 'apt-get', 'install', '-y', 'google-chrome-stable'], check=True)
+                    chrome_cmd = shutil.which('google-chrome')
+                    if chrome_cmd:
+                        logging.info("Chrome instalado com sucesso!")
+                    else:
+                        raise Exception("Falha na instalação automática do Chrome")
+                except Exception as install_error:
+                    logging.error(f"Erro na instalação automática: {install_error}")
+                    raise Exception("Chrome não está instalado ou não pode ser executado")
+            else:
+                raise Exception("Chrome não está instalado ou não pode ser executado")
 
         chrome_version = subprocess.check_output([chrome_cmd, '--version'], stderr=subprocess.STDOUT)
         logging.info(f"Chrome instalado: {chrome_version.decode().strip()!r}")
@@ -42,6 +66,26 @@ def iniciar_navegador():
     options.add_argument("--disable-features=VizDisplayCompositor")
     options.add_argument("--window-size=1920,1080")
     options.add_argument("--user-agent=Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36")
+    
+    # Opções adicionais para GitHub Actions
+    options.add_argument("--disable-background-timer-throttling")
+    options.add_argument("--disable-backgrounding-occluded-windows")
+    options.add_argument("--disable-renderer-backgrounding")
+    options.add_argument("--disable-features=TranslateUI")
+    options.add_argument("--disable-ipc-flooding-protection")
+    options.add_argument("--disable-default-apps")
+    options.add_argument("--disable-sync")
+    options.add_argument("--no-first-run")
+    options.add_argument("--disable-background-networking")
+    options.add_argument("--disable-component-extensions-with-background-pages")
+    options.add_argument("--disable-client-side-phishing-detection")
+    options.add_argument("--disable-hang-monitor")
+    options.add_argument("--disable-prompt-on-repost")
+    options.add_argument("--disable-domain-reliability")
+    options.add_argument("--disable-component-update")
+    options.add_argument("--disable-features=AudioServiceOutOfProcess")
+    options.add_argument("--force-color-profile=srgb")
+    options.add_argument("--metrics-recording-only")
     
     try:
         service = Service(ChromeDriverManager().install())
