@@ -9,7 +9,13 @@ import logging
 import os
 import shutil
 
-def iniciar_navegador():
+def iniciar_navegador(headless=True):
+    """
+    Inicia o navegador Chrome com configurações otimizadas.
+    
+    Args:
+        headless: Se True, executa em modo headless. Se False, executa em modo headful.
+    """
     logging.info("Verificando ambiente para inicialização do Chrome...")
     
     try:
@@ -56,7 +62,15 @@ def iniciar_navegador():
         raise
 
     options = Options()
-    options.add_argument("--headless")
+    
+    # Configurar modo headless/headful
+    if headless:
+        options.add_argument("--headless")
+        logging.info("🔧 Modo headless ativado")
+    else:
+        logging.info("🔧 Modo headful ativado")
+    
+    # Opções básicas
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
     options.add_argument("--disable-gpu")
@@ -119,6 +133,15 @@ def iniciar_navegador():
     options.add_argument("--disable-component-update")
     options.add_argument("--disable-features=AudioServiceOutOfProcess")
     
+    # Opções específicas para Cloudflare
+    options.add_argument("--disable-blink-features=AutomationControlled")
+    options.add_argument("--disable-web-security")
+    options.add_argument("--allow-running-insecure-content")
+    options.add_argument("--disable-features=VizDisplayCompositor")
+    
+    # User-Agent mais realista
+    options.add_argument("--user-agent=Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+    
     try:
         service = Service(ChromeDriverManager().install())
         logging.info(f"ChromeDriver instalado em: {service.path}")
@@ -131,6 +154,10 @@ def iniciar_navegador():
                 logging.info("Permissão de execução adicionada ao ChromeDriver")
         
         driver = webdriver.Chrome(service=service, options=options)
+        
+        # Executar script para remover propriedades de automação
+        driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
+        
         logging.info("Navegador Chrome iniciado com sucesso!")
         return driver
 

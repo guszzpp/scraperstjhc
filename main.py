@@ -71,7 +71,9 @@ def main(data_referencia: str):
         Path("dados_diarios").mkdir(exist_ok=True)
         listar_arquivos_com_detalhes(".")  # Mostrar diretório atual
 
-        navegador = iniciar_navegador()
+        # Verificar se estamos em modo headful (quando executado com xvfb-run)
+        headless = os.environ.get('DISPLAY') is None
+        navegador = iniciar_navegador(headless=headless)
         wait = WebDriverWait(navegador, 30)
 
         try:

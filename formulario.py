@@ -8,8 +8,49 @@ from selenium.webdriver.common.action_chains import ActionChains
 import logging
 import time
 import os
+import sys
 
 from config import URL_PESQUISA, ORGAO_ORIGEM
+
+def aguardar_pos_challenge(driver, timeout=90):
+    """
+    Aguarda até que o título da página não contenha "Just a moment..." (case insensitive).
+    
+    Args:
+        driver: Instância do WebDriver
+        timeout: Timeout em segundos (padrão 90)
+    
+    Returns:
+        bool: True se a página passou do desafio, False se o tempo estourar
+    """
+    logging.info(f"🔄 Aguardando resolução do desafio de carregamento (timeout: {timeout}s)...")
+    
+    start_time = time.time()
+    check_interval = 5  # Verificar a cada 5 segundos
+    
+    while (time.time() - start_time) < timeout:
+        try:
+            current_title = driver.title
+            logging.info(f"   Título atual: '{current_title}'")
+            
+            # Verificar se o título contém "Just a moment..."
+            if "just a moment" not in current_title.lower():
+                elapsed_time = time.time() - start_time
+                logging.info(f"✅ Desafio resolvido em {elapsed_time:.1f}s - Título: '{current_title}'")
+                return True
+            
+            # Aguardar antes da próxima verificação
+            time.sleep(check_interval)
+            
+        except Exception as e:
+            logging.warning(f"   Erro ao verificar título: {e}")
+            time.sleep(check_interval)
+    
+    # Timeout atingido
+    elapsed_time = time.time() - start_time
+    logging.error(f"❌ Timeout após {elapsed_time:.1f}s - Desafio de carregamento não resolvido")
+    logging.error(f"   Título final: '{driver.title}'")
+    return False
 
 def click_and_wait(driver, wait, botao_locator, resultado_locator, retries=3, delay=5):
     """
@@ -164,6 +205,11 @@ def preencher_formulario(driver, wait, data_inicial, data_final):
     """
     logging.info("🌐 Acessando URL de pesquisa...")
     driver.get(URL_PESQUISA)
+    
+    # Aguardar resolução do desafio de carregamento
+    if not aguardar_pos_challenge(driver, timeout=90):
+        logging.error("❌ Desafio de carregamento não resolvido")
+        sys.exit(1)
     
     # Aguardar página carregar completamente
     if not wait_for_page_load(driver, wait):

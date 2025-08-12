@@ -71,7 +71,7 @@ jobs:
           echo "ontem_fmt=$ONTEM_FMT" >> $GITHUB_OUTPUT
 
       - name: 🔍 Rodar scraper principal
-        run: python main.py "${{ steps.data.outputs.ontem }}"
+        run: xvfb-run -a python main.py "${{ steps.data.outputs.ontem }}"
 
       - name: 📂 Debug dos arquivos gerados
         run: |
