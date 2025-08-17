@@ -12,13 +12,14 @@ import sys
 
 from config import URL_PESQUISA, ORGAO_ORIGEM
 
-def aguardar_pos_challenge(driver, timeout=90):
+def aguardar_pos_challenge(driver, timeout=180):
     """
     Aguarda até que o título da página não contenha "Just a moment..." (case insensitive).
+    Implementa estratégias adicionais para contornar proteções do Cloudflare.
     
     Args:
         driver: Instância do WebDriver
-        timeout: Timeout em segundos (padrão 90)
+        timeout: Timeout em segundos (padrão 180 - aumentado de 90)
     
     Returns:
         bool: True se a página passou do desafio, False se o tempo estourar
@@ -28,16 +29,73 @@ def aguardar_pos_challenge(driver, timeout=90):
     start_time = time.time()
     check_interval = 5  # Verificar a cada 5 segundos
     
+    # Estratégias adicionais para contornar Cloudflare
+    strategies_applied = False
+    
     while (time.time() - start_time) < timeout:
         try:
             current_title = driver.title
+            current_url = driver.current_url
             logging.info(f"   Título atual: '{current_title}'")
+            logging.info(f"   URL atual: {current_url}")
             
             # Verificar se o título contém "Just a moment..."
             if "just a moment" not in current_title.lower():
                 elapsed_time = time.time() - start_time
                 logging.info(f"✅ Desafio resolvido em {elapsed_time:.1f}s - Título: '{current_title}'")
                 return True
+            
+            # Aplicar estratégias adicionais após 30 segundos se ainda não aplicadas
+            if not strategies_applied and (time.time() - start_time) > 30:
+                logging.info("🔧 Aplicando estratégias adicionais para contornar Cloudflare...")
+                
+                try:
+                    # Estratégia 1: Recarregar a página
+                    logging.info("   Estratégia 1: Recarregando página...")
+                    driver.refresh()
+                    time.sleep(10)
+                    
+                    # Estratégia 2: Tentar navegar para uma URL diferente e voltar
+                    if "just a moment" in driver.title.lower():
+                        logging.info("   Estratégia 2: Navegando para URL alternativa...")
+                        driver.get("https://www.stj.jus.br")
+                        time.sleep(5)
+                        driver.get(URL_PESQUISA)
+                        time.sleep(10)
+                    
+                    # Estratégia 3: Executar JavaScript para simular interação humana
+                    if "just a moment" in driver.title.lower():
+                        logging.info("   Estratégia 3: Executando JavaScript para simular interação...")
+                        driver.execute_script("""
+                            // Simular movimento do mouse
+                            var event = new MouseEvent('mousemove', {
+                                'view': window,
+                                'bubbles': true,
+                                'cancelable': true,
+                                'clientX': Math.random() * window.innerWidth,
+                                'clientY': Math.random() * window.innerHeight
+                            });
+                            document.dispatchEvent(event);
+                            
+                            // Simular scroll
+                            window.scrollTo(0, Math.random() * 100);
+                            
+                            // Simular clique
+                            var clickEvent = new MouseEvent('click', {
+                                'view': window,
+                                'bubbles': true,
+                                'cancelable': true
+                            });
+                            document.body.dispatchEvent(clickEvent);
+                        """)
+                        time.sleep(5)
+                    
+                    strategies_applied = True
+                    logging.info("✅ Estratégias adicionais aplicadas")
+                    
+                except Exception as e:
+                    logging.warning(f"   Erro ao aplicar estratégias adicionais: {e}")
+                    strategies_applied = True  # Marcar como aplicadas para não tentar novamente
             
             # Aguardar antes da próxima verificação
             time.sleep(check_interval)
@@ -50,6 +108,7 @@ def aguardar_pos_challenge(driver, timeout=90):
     elapsed_time = time.time() - start_time
     logging.error(f"❌ Timeout após {elapsed_time:.1f}s - Desafio de carregamento não resolvido")
     logging.error(f"   Título final: '{driver.title}'")
+    logging.error(f"   URL final: {driver.current_url}")
     return False
 
 def click_and_wait(driver, wait, botao_locator, resultado_locator, retries=3, delay=5):
@@ -203,12 +262,11 @@ def preencher_formulario(driver, wait, data_inicial, data_final):
     """
     Acessa a página de pesquisa do STJ e preenche os campos do formulário.
     """
-    logging.info("🌐 Acessando URL de pesquisa...")
-    driver.get(URL_PESQUISA)
+    logging.info("🌐 Tentando acessar site do STJ...")
     
-    # Aguardar resolução do desafio de carregamento
-    if not aguardar_pos_challenge(driver, timeout=90):
-        logging.error("❌ Desafio de carregamento não resolvido")
+    # Tentar múltiplas estratégias de acesso
+    if not tentar_acesso_multiplo(driver, wait, max_tentativas=3):
+        logging.error("❌ Falha em todas as tentativas de acesso ao site")
         sys.exit(1)
     
     # Aguardar página carregar completamente
@@ -386,3 +444,68 @@ def preencher_formulario(driver, wait, data_inicial, data_final):
         raise TimeoutException("Falha ao clicar em Pesquisar e obter resultados após múltiplas tentativas.")
 
     logging.info("✅ Preenchimento do formulário e espera pós-pesquisa concluídos.")
+
+def tentar_acesso_multiplo(driver, wait, max_tentativas=3):
+    """
+    Tenta acessar o site do STJ usando múltiplas estratégias para contornar proteções.
+    
+    Args:
+        driver: Instância do WebDriver
+        wait: Instância do WebDriverWait
+        max_tentativas: Número máximo de tentativas
+    
+    Returns:
+        bool: True se conseguiu acessar, False caso contrário
+    """
+    urls_alternativas = [
+        URL_PESQUISA,
+        "https://www.stj.jus.br",
+        "https://processo.stj.jus.br",
+        "https://processo.stj.jus.br/processo/",
+        "https://processo.stj.jus.br/processo/pesquisa/"
+    ]
+    
+    for tentativa in range(max_tentativas):
+        logging.info(f"🔄 Tentativa {tentativa + 1}/{max_tentativas} de acesso ao site...")
+        
+        for i, url in enumerate(urls_alternativas):
+            try:
+                logging.info(f"   Tentando URL {i + 1}/{len(urls_alternativas)}: {url}")
+                driver.get(url)
+                
+                # Aguardar carregamento inicial
+                time.sleep(5)
+                
+                # Verificar se passou do Cloudflare
+                if aguardar_pos_challenge(driver, timeout=120):
+                    logging.info(f"✅ Acesso bem-sucedido via {url}")
+                    
+                    # Se não estamos na URL de pesquisa, navegar para ela
+                    if url != URL_PESQUISA:
+                        logging.info("   Navegando para URL de pesquisa...")
+                        driver.get(URL_PESQUISA)
+                        time.sleep(3)
+                        
+                        if aguardar_pos_challenge(driver, timeout=60):
+                            logging.info("✅ Navegação para pesquisa bem-sucedida")
+                            return True
+                        else:
+                            logging.warning("❌ Falha na navegação para pesquisa")
+                            continue
+                    else:
+                        return True
+                
+                else:
+                    logging.warning(f"❌ Falha no acesso via {url}")
+                    
+            except Exception as e:
+                logging.warning(f"   Erro ao acessar {url}: {e}")
+                continue
+        
+        # Se chegou aqui, todas as URLs falharam nesta tentativa
+        if tentativa < max_tentativas - 1:
+            logging.info(f"   Aguardando 30s antes da próxima tentativa...")
+            time.sleep(30)
+    
+    logging.error("❌ Todas as tentativas de acesso falharam")
+    return False
